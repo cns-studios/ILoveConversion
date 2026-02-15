@@ -1029,3 +1029,117 @@ body {
         flex-direction: column;
     }
 }
+
+/* QR Code Styles */
+.qr-input-section {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    margin-bottom: 24px;
+    animation: fadeIn 0.25s ease forwards;
+}
+
+.qr-input-container {
+    max-width: 600px;
+}
+
+.qr-fields {
+    animation: fadeIn 0.2s ease forwards;
+}
+
+.qr-textarea {
+    resize: vertical;
+    font-family: var(--font-sans);
+    min-height: 100px;
+}
+
+.qr-input,
+.qr-textarea {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    transition: all var(--transition-fast);
+    box-sizing: border-box;
+}
+
+.qr-input:focus,
+.qr-textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow-subtle);
+}
+
+.qr-output-section {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    margin-bottom: 24px;
+    animation: fadeIn 0.25s ease forwards;
+    text-align: center;
+}
+
+.qr-output-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+#qr-result-canvas {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: inline-block;
+}
+
+#qr-result-canvas canvas {
+    max-width: 100%;
+    height: auto;
+}
+
+.qr-output-text {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.btn-download-qr {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.qr-search-results {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-top: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    position: relative;
+    z-index: 100;
+}
+
+.search-result-item {
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-subtle);
+    transition: background-color var(--transition-fast);
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+.search-result-item:hover {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+}

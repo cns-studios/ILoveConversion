@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
+    <script src="/qrcode.min.js"></script>
 </head>
 <body>
     <div id="app">
@@ -58,6 +59,10 @@
                 <span class="tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></span>
                 <span class="tab-label">Video Compress</span>
             </button>
+            <button class="tab" data-tool="qr_code" role="tab">
+                <span class="tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="2" height="2"/><rect x="8" y="14" width="2" height="2"/><rect x="3" y="19" width="2" height="2"/><rect x="8" y="19" width="2" height="2"/><rect x="13" y="19" width="2" height="2"/><rect x="18" y="19" width="2" height="2"/></svg></span>
+                <span class="tab-label">QR Code</span>
+            </button>
         </nav>
 
         <main class="workspace">
@@ -71,6 +76,67 @@
                     <p class="dropzone-subtext">or <label for="file-input" class="file-label">browse</label></p>
                     <input type="file" id="file-input" class="file-input" />
                     <p class="dropzone-formats" id="accepted-formats"></p>
+                </div>
+            </div>
+
+            <div id="qr-input-section" class="qr-input-section hidden">
+                <div class="qr-input-container">
+                    <div class="option-group">
+                        <label class="option-label" for="qr-type">Type</label>
+                        <select class="option-select" id="qr-type">
+                            <option value="url">URL</option>
+                            <option value="text">Text</option>
+                            <option value="location">Location</option>
+                            <option value="wifi">WiFi</option>
+                        </select>
+                    </div>
+
+                    <div id="qr-url-fields" class="qr-fields">
+                        <div class="option-group">
+                            <label class="option-label" for="qr-url-input">URL</label>
+                            <input type="text" id="qr-url-input" class="qr-input" placeholder="https://example.com" />
+                        </div>
+                    </div>
+
+                    <div id="qr-text-fields" class="qr-fields hidden">
+                        <div class="option-group">
+                            <label class="option-label" for="qr-text-input">Text</label>
+                            <textarea id="qr-text-input" class="qr-input qr-textarea" placeholder="Enter text to encode" rows="4"></textarea>
+                        </div>
+                    </div>
+
+                    <div id="qr-location-fields" class="qr-fields hidden">
+                        <div class="option-group">
+                            <label class="option-label" for="qr-location-search">Search Location</label>
+                            <input type="text" id="qr-location-search" class="qr-input" placeholder="e.g., New York, Times Square" />
+                            <div id="qr-search-results" class="qr-search-results hidden"></div>
+                        </div>
+                        <div class="option-group">
+                            <label class="option-label" for="qr-latitude-input">Latitude</label>
+                            <input type="number" id="qr-latitude-input" class="qr-input" placeholder="0.0" step="0.0001" />
+                        </div>
+                        <div class="option-group">
+                            <label class="option-label" for="qr-longitude-input">Longitude</label>
+                            <input type="number" id="qr-longitude-input" class="qr-input" placeholder="0.0" step="0.0001" />
+                        </div>
+                    </div>
+
+                    <div id="qr-wifi-fields" class="qr-fields hidden">
+                        <div class="option-group">
+                            <label class="option-label" for="qr-wifi-ssid">Network Name (SSID)</label>
+                            <input type="text" id="qr-wifi-ssid" class="qr-input" placeholder="WiFi network name" />
+                        </div>
+                        <div class="option-group">
+                            <label class="option-label" for="qr-wifi-password">Password</label>
+                            <input type="password" id="qr-wifi-password" class="qr-input" placeholder="WiFi password" />
+                        </div>
+                        <div class="option-group">
+                            <div class="option-checkbox-row">
+                                <input type="checkbox" class="option-checkbox" id="qr-wifi-hidden">
+                                <label class="option-checkbox-label" for="qr-wifi-hidden">Hidden network</label>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -89,12 +155,22 @@
                 </div>
             </div>
 
+            <div id="qr-output-section" class="qr-output-section hidden">
+                <div class="qr-output-container">
+                    <div id="qr-result-canvas"></div>
+                </div>
+            </div>
+
             <div id="options-panel" class="options-panel hidden">
             </div>
 
             <div class="action-row">
                 <button id="btn-process" class="btn-primary" disabled>
                     <span id="btn-text">Select a file to start</span>
+                </button>
+                <button id="btn-download-qr" class="btn-primary hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download QR Code
                 </button>
             </div>
 

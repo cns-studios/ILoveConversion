@@ -25,6 +25,7 @@
         optionsPanel: $('#options-panel'),
         btnProcess: $('#btn-process'),
         btnText: $('#btn-text'),
+        btnDownloadQr: $('#btn-download-qr'),
         progressSection: $('#progress-section'),
         progressLabel: $('#progress-label'),
         progressPct: $('#progress-pct'),
@@ -39,6 +40,19 @@
         resultDownload: $('#result-download'),
         errorMessage: $('#error-message'),
         btnRetry: $('#btn-retry'),
+        qrInputSection: $('#qr-input-section'),
+        qrOutputSection: $('#qr-output-section'),
+        qrResultCanvas: $('#qr-result-canvas'),
+        qrType: $('#qr-type'),
+        qrUrlInput: $('#qr-url-input'),
+        qrTextInput: $('#qr-text-input'),
+        qrLatitudeInput: $('#qr-latitude-input'),
+        qrLongitudeInput: $('#qr-longitude-input'),
+        qrLocationSearch: $('#qr-location-search'),
+        qrSearchResults: $('#qr-search-results'),
+        qrWifiSsid: $('#qr-wifi-ssid'),
+        qrWifiPassword: $('#qr-wifi-password'),
+        qrWifiHidden: $('#qr-wifi-hidden'),
     };
 
     const toolConfig = {
@@ -76,6 +90,12 @@
             label: 'Compress Video',
             action: 'Compress',
             options: ['output_format', 'quality'],
+        },
+        qr_code: {
+            label: 'Generate QR Code',
+            action: 'Generate',
+            options: [],
+            isBrowserOnly: true,
         },
     };
 
@@ -129,6 +149,7 @@
                     input: ['mp4', 'mkv', 'webm', 'avi', 'mov'],
                     output: ['mp4', 'mkv', 'webm'],
                 },
+                qr_code: {},
             };
         }
     }
@@ -171,6 +192,19 @@
             resetUI();
         });
 
+        dom.btnDownloadQr.addEventListener('click', downloadQrCode);
+
+        // QR Code specific events
+        dom.qrType.addEventListener('change', switchQrType);
+        dom.qrUrlInput.addEventListener('input', generateQrCode);
+        dom.qrTextInput.addEventListener('input', generateQrCode);
+        dom.qrLocationSearch.addEventListener('input', debounceLocationSearch);
+        dom.qrLatitudeInput.addEventListener('input', generateQrCode);
+        dom.qrLongitudeInput.addEventListener('input', generateQrCode);
+        dom.qrWifiSsid.addEventListener('input', generateQrCode);
+        dom.qrWifiPassword.addEventListener('input', generateQrCode);
+        dom.qrWifiHidden.addEventListener('change', generateQrCode);
+
         $('#btn-accept').addEventListener('click', () => {
             const date = new Date();
             date.setFullYear(date.getFullYear() + 1);
@@ -192,16 +226,40 @@
             tab.setAttribute('aria-selected', isActive);
         });
 
-        updateAcceptedFormats();
-        buildOptionsPanel();
-        clearFile();
-        resetUI();
-        updateFileInputAccept();
+        const isQrCode = toolConfig[tool].isBrowserOnly;
 
-        const workspace = $('.workspace');
-        workspace.classList.remove('slide-content');
-        void workspace.offsetWidth;
-        workspace.classList.add('slide-content');
+        if (isQrCode) {
+            // QR Code mode
+            dom.dropzone.classList.add('hidden');
+            dom.fileInfo.classList.add('hidden');
+            dom.optionsPanel.classList.add('hidden');
+            dom.qrInputSection.classList.remove('hidden');
+            dom.btnProcess.classList.add('hidden');
+            dom.btnDownloadQr.classList.add('hidden');
+            switchQrType();
+            
+            const workspace = $('.workspace');
+            workspace.classList.remove('slide-content');
+            void workspace.offsetWidth;
+            workspace.classList.add('slide-content');
+        } else {
+            // File mode
+            dom.qrInputSection.classList.add('hidden');
+            dom.qrOutputSection.classList.add('hidden');
+            dom.btnDownloadQr.classList.add('hidden');
+            dom.btnProcess.classList.remove('hidden');
+            dom.acceptedFormats.classList.remove('hidden');
+            updateAcceptedFormats();
+            buildOptionsPanel();
+            clearFile();
+            resetUI();
+            updateFileInputAccept();
+            
+            const workspace = $('.workspace');
+            workspace.classList.remove('slide-content');
+            void workspace.offsetWidth;
+            workspace.classList.add('slide-content');
+        }
     }
 
     function updateAcceptedFormats() {
@@ -651,6 +709,161 @@
 
     function getExtension(filename) {
         return (filename || '').split('.').pop().toLowerCase();
+    }
+
+    function switchQrType() {
+        const type = dom.qrType.value;
+        
+        $('#qr-url-fields').classList.toggle('hidden', type !== 'url');
+        $('#qr-text-fields').classList.toggle('hidden', type !== 'text');
+        $('#qr-location-fields').classList.toggle('hidden', type !== 'location');
+        $('#qr-wifi-fields').classList.toggle('hidden', type !== 'wifi');
+
+        generateQrCode();
+    }
+
+    function generateQrCode() {
+        const type = dom.qrType.value;
+        let data = '';
+
+        switch (type) {
+            case 'url':
+                data = dom.qrUrlInput.value.trim();
+                break;
+            case 'text':
+                data = dom.qrTextInput.value.trim();
+                break;
+            case 'location':
+                const lat = dom.qrLatitudeInput.value.trim();
+                const lng = dom.qrLongitudeInput.value.trim();
+                if (lat && lng) {
+                    data = `geo:${lat},${lng}`;
+                }
+                break;
+            case 'wifi':
+                const ssid = dom.qrWifiSsid.value.trim();
+                const password = dom.qrWifiPassword.value.trim();
+                const hidden = dom.qrWifiHidden.checked ? 'true' : 'false';
+                if (ssid) {
+                    // WiFi QR code format: WIFI:T:WPA;S:SSID;P:PASSWORD;H:HIDDEN;;
+                    data = `WIFI:T:WPA;S:${escapeWifiString(ssid)};P:${password ? escapeWifiString(password) : ''};H:${hidden};;`;
+                }
+                break;
+        }
+
+        if (!data) {
+            dom.qrOutputSection.classList.add('hidden');
+            dom.btnDownloadQr.classList.add('hidden');
+            dom.qrResultCanvas.innerHTML = '';
+            return;
+        }
+
+        // Clear previous QR code
+        dom.qrResultCanvas.innerHTML = '';
+
+        try {
+            const qr = new QRCode(dom.qrResultCanvas, {
+                text: data,
+                width: 140,
+                height: 140,
+                colorDark: '#fafafa',
+                colorLight: '#18181b',
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
+            dom.qrOutputSection.classList.remove('hidden');
+            dom.btnDownloadQr.classList.remove('hidden');
+
+            // Store the data for download
+            state.qrCodeData = data;
+        } catch (e) {
+            console.error('Failed to generate QR code:', e);
+            dom.qrOutputSection.classList.add('hidden');
+            dom.btnDownloadQr.classList.add('hidden');
+        }
+    }
+
+    function escapeWifiString(str) {
+        return str.replace(/([\\";:,])/g, '\\$1');
+    }
+
+    let locationSearchTimer;
+    function debounceLocationSearch() {
+        clearTimeout(locationSearchTimer);
+        const query = dom.qrLocationSearch.value.trim();
+        console.log('Location search input:', query);
+        
+        if (!query) {
+            dom.qrSearchResults.classList.add('hidden');
+            return;
+        }
+
+        locationSearchTimer = setTimeout(() => searchLocation(query), 300);
+    }
+
+    async function searchLocation(query) {
+        console.log('Searching for location:', query);
+        try {
+            const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=8`;
+            console.log('Fetch URL:', url);
+            
+            const response = await fetch(url, {
+                headers: { 
+                    'User-Agent': 'ILoveConvertion-QRGenerator',
+                    'Accept': 'application/json'
+                }
+            });
+            
+            console.log('Response status:', response.status);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const results = await response.json();
+            console.log('Search results count:', results.length, results);
+            
+            if (results.length === 0) {
+                dom.qrSearchResults.innerHTML = '<div class="search-result-item">No places found</div>';
+                dom.qrSearchResults.classList.remove('hidden');
+                return;
+            }
+
+            dom.qrSearchResults.innerHTML = results.map((result, idx) => `
+                <div class="search-result-item" onclick="selectLocationResult(${idx}, ${result.lat}, ${result.lon})">
+                    ${result.display_name}
+                </div>
+            `).join('');
+            
+            dom.qrSearchResults.classList.remove('hidden');
+            window.locationSearchResults = results;
+            console.log('Results displayed');
+        } catch (e) {
+            console.error('Location search error:', e);
+            dom.qrSearchResults.innerHTML = `<div class="search-result-item">Error: ${e.message}</div>`;
+            dom.qrSearchResults.classList.remove('hidden');
+        }
+    }
+
+    function selectLocationResult(idx, lat, lon) {
+        dom.qrLatitudeInput.value = lat;
+        dom.qrLongitudeInput.value = lon;
+        dom.qrLocationSearch.value = window.locationSearchResults[idx].display_name;
+        dom.qrSearchResults.classList.add('hidden');
+        generateQrCode();
+    }
+
+    // Make function globally accessible for onclick handlers
+    window.selectLocationResult = selectLocationResult;
+    window.locationSearchResults = [];
+
+    function downloadQrCode() {
+        const canvas = dom.qrResultCanvas.querySelector('canvas');
+        if (!canvas) return;
+
+        const link = document.createElement('a');
+        link.href = canvas.toDataURL('image/png');
+        link.download = 'qr-code.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 
     if (document.readyState === 'loading') {
