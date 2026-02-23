@@ -3,15 +3,26 @@ package processor
 import (
 	"context"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
+	"os"
 
 	"fileforge/internal/models"
 
 	"github.com/h2non/bimg"
+	"github.com/jung-kurt/gofpdf"
 )
 
 func ImageConvert(ctx context.Context, inputPath, outputPath string, params models.JobParams) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+
+	// Handle PDF output as a special case
+	if params.OutputFormat == "pdf" {
+		return imageToPDF(ctx, inputPath, outputPath, params)
 	}
 
 	imgType, supported := bimgType(params.OutputFormat)
@@ -158,6 +169,45 @@ func compressPNGLossy(ctx context.Context, inputPath, outputPath string, quality
 
 	if err != nil {
 		return compressPNGLossless(ctx, inputPath, outputPath)
+	}
+
+	return nil
+}
+
+func imageToPDF(ctx context.Context, inputPath, outputPath string, params models.JobParams) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	// Open and decode image to get dimensions
+	file, err := os.Open(inputPath)
+	if err != nil {
+		return fmt.Errorf("open image: %w", err)
+	}
+	defer file.Close()
+
+	cfg, _, err := image.DecodeConfig(file)
+	if err != nil {
+		return fmt.Errorf("decode image config: %w", err)
+	}
+
+	// Convert pixels to mm (1 inch = 25.4 mm, 72 dpi standard)
+	mmPerInch := 25.4
+	dpi := 72.0
+	widthMM := float64(cfg.Width) * mmPerInch / dpi
+	heightMM := float64(cfg.Height) * mmPerInch / dpi
+
+	// Create PDF (with dummy initial size, will be reset)
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	
+	// Add page with custom dimensions matching image
+	pdf.AddPageFormat("P", gofpdf.SizeType{Wd: widthMM, Ht: heightMM})
+	
+	// Embed image filling the entire page
+	pdf.ImageOptions(inputPath, 0, 0, widthMM, heightMM, false, gofpdf.ImageOptions{ImageType: "", ReadDpi: true}, 0, "")
+
+	if err := pdf.OutputFileAndClose(outputPath); err != nil {
+		return fmt.Errorf("create PDF: %w", err)
 	}
 
 	return nil

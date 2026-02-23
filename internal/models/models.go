@@ -80,7 +80,7 @@ var inputFormats = map[string][]string{
 }
 
 var outputFormats = map[string][]string{
-	OpImageConvert:  {"jpeg", "png", "webp", "tiff", "gif", "avif", "heif", "bmp"},
+	OpImageConvert:  {"jpeg", "png", "webp", "tiff", "gif", "avif", "heif", "bmp", "pdf"},
 	OpImageCompress: {}, // same as input
 	OpImageRemoveBG: {"png", "webp"},
 	OpPDFCompress:   {"pdf"},

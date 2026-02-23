@@ -454,7 +454,7 @@ func errStr(err error) string {
 const formatsJSON = `{
   "image_convert": {
     "input": ["jpeg","jpg","png","webp","tiff","tif","gif","avif","heif","heic","bmp"],
-    "output": ["jpeg","png","webp","tiff","gif","avif","heif","bmp"]
+    "output": ["jpeg","png","webp","tiff","gif","avif","heif","bmp","pdf"]
   },
   "image_compress": {
     "input": ["jpeg","jpg","png","webp","tiff","tif","gif","avif","heif","heic","bmp"],
