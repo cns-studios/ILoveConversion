@@ -1,8 +1,8 @@
-# ILoveConvertion
+# ILoveConversion
 
 ### Available [here](https://ilc.cns-studios.com)
 
-**ILoveConvertion** is a high-performance, privacy-focused file processing engine designed for modern web environments. It provides a robust infrastructure to convert, compress, and transform various media types while maintaining strict security standards.
+**ILoveConversion** is a high-performance, privacy-focused file processing engine designed for modern web environments. It provides a robust infrastructure to convert, compress, and transform various media types while maintaining strict security standards.
 
 All files are **encrypted at rest** using AES-256-GCM with unique keys derived for every single job. The system is built for speed, utilizing RAM-disks (tmpfs) for all intermediate processing to ensure zero data traces on physical disks during transformation.
 
@@ -41,7 +41,7 @@ ILC operates as a distributed microservices architecture:
 
 1. **Clone & Enter**:
    ```bash
-   git clone https://github.com/cns-studios/ILoveConvertion.git && cd ILoveConvertion
+   git clone https://github.com/cns-studios/ILoveConversion.git && cd ILoveConversion
    ```
 
 2. **Environment Setup**:
