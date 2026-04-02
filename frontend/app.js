@@ -658,7 +658,7 @@
         const outExt = job.output_filename
             ? job.output_filename.substring(job.output_filename.lastIndexOf('.'))
             : '';
-        dom.resultDownload.setAttribute('download', baseName + '-iloveconvertion' + outExt);
+        dom.resultDownload.setAttribute('download', baseName + '-iloveconversion' + outExt);
 
         dom.resultSuccess.classList.remove('hidden');
         dom.resultError.classList.add('hidden');
@@ -809,7 +809,7 @@
             
             const response = await fetch(url, {
                 headers: { 
-                    'User-Agent': 'ILoveConvertion-QRGenerator',
+                    'User-Agent': 'ILoveConversion-QRGenerator',
                     'Accept': 'application/json'
                 }
             });
