@@ -32,7 +32,7 @@ func runCommand(ctx context.Context, name string, args ...string) (string, error
 		if len(errOutput) > 500 {
 			errOutput = errOutput[:500] + "…"
 		}
-		return "", fmt.Errorf("%s failed: %v — %s", name, err, errOutput)
+		return "", fmt.Errorf("%s failed: %v - %s", name, err, errOutput)
 	}
 
 	return stdout.String(), nil
@@ -55,7 +55,7 @@ func runCommandPipeInput(ctx context.Context, stdinData []byte, name string, arg
 		if len(errMsg) > 500 {
 			errMsg = errMsg[:500] + "…"
 		}
-		return nil, fmt.Errorf("%s failed: %v — %s", name, err, errMsg)
+		return nil, fmt.Errorf("%s failed: %v - %s", name, err, errMsg)
 	}
 
 	return stdout.Bytes(), nil

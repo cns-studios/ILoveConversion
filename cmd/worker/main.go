@@ -74,7 +74,7 @@ func main() {
 		}(i)
 	}
 
-	log.Printf("Worker ready — %d goroutines listening on queue", cfg.WorkerConcurrency)
+	log.Printf("Worker ready - %d goroutines listening on queue", cfg.WorkerConcurrency)
 
 	<-done
 	log.Println("Shutting down worker...")
@@ -90,7 +90,7 @@ func main() {
 	case <-waitCh:
 		log.Println("All worker goroutines stopped gracefully")
 	case <-time.After(2 * time.Minute):
-		log.Println("Shutdown timeout — some jobs may not have completed cleanly")
+		log.Println("Shutdown timeout - some jobs may not have completed cleanly")
 	}
 
 	log.Println("Worker stopped.")
@@ -261,7 +261,7 @@ func (w *worker) handleProcessError(ctx context.Context, workerID int, jobID, op
 	maxRetries := w.cfg.MaxRetriesFor(operation)
 
 	if retryCount <= maxRetries {
-		log.Printf("[worker-%d] ↻ Job %s failed (attempt %d/%d): %v — requeuing",
+		log.Printf("[worker-%d] ↻ Job %s failed (attempt %d/%d): %v - requeuing",
 			workerID, jobID, retryCount, maxRetries, processErr)
 		if err := w.queue.Requeue(ctx, jobID); err != nil {
 			log.Printf("[worker-%d] Requeue failed for %s: %v", workerID, jobID, err)

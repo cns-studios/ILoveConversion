@@ -553,6 +553,7 @@ body {
     align-items: center;
     justify-content: center;
     gap: 8px;
+    width: 100%;
     padding: 12px 24px;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
@@ -615,6 +616,35 @@ body {
     background: var(--accent);
     border-radius: 2px;
     transition: width 200ms ease;
+}
+
+.progress-bar-fill.indeterminate {
+    width: 100%;
+    position: relative;
+    transition: none;
+    background: var(--accent);
+    overflow: hidden;
+}
+
+.progress-bar-fill.indeterminate::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 40%;
+    background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.5) 45%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0.5) 55%, rgba(255,255,255,0) 100%);
+    animation: progress-shimmer 1.4s ease-in-out infinite;
+    will-change: transform;
+}
+
+@keyframes progress-shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(300%);
+    }
 }
 
 .progress-detail {

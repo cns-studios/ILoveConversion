@@ -8,6 +8,7 @@
         pollTimer: null,
         formats: null,
         uploading: false,
+        startOver: false,
     };
 
     const $ = (sel) => document.querySelector(sel);
@@ -186,7 +187,7 @@
             clearFile();
         });
 
-        dom.btnProcess.addEventListener('click', startProcessing);
+        dom.btnProcess.addEventListener('click', handleProcessClick);
 
         dom.btnRetry.addEventListener('click', () => {
             resetUI();
@@ -389,10 +390,10 @@
 
     function buildDpiSelect() {
         const options = [
-            { value: '72', label: '72 DPI — Smallest' },
-            { value: '150', label: '150 DPI — Balanced' },
-            { value: '300', label: '300 DPI — High Quality' },
-            { value: '600', label: '600 DPI — Maximum' }
+            { value: '72', label: '72 DPI - Smallest' },
+            { value: '150', label: '150 DPI - Balanced' },
+            { value: '300', label: '300 DPI - High Quality' },
+            { value: '600', label: '600 DPI - Maximum' }
         ];
         return buildNativeSelect('Image DPI in PDF', 'opt-image-dpi', options, '150');
     }
@@ -493,14 +494,27 @@
         dom.btnText.textContent = 'Select a file to start';
     }
 
+    function handleProcessClick() {
+        if (state.startOver) {
+            clearFile();
+            resetUI();
+            return;
+        }
+        startProcessing();
+    }
+
     function startProcessing() {
         if (!state.selectedFile || state.uploading) return;
 
         state.uploading = true;
+        state.startOver = false;
         dom.btnProcess.disabled = true;
+        dom.btnProcess.classList.remove('btn-secondary');
+        dom.btnProcess.classList.add('btn-primary');
         dom.optionsPanel.classList.add('hidden');
         dom.resultSection.classList.add('hidden');
         dom.progressSection.classList.remove('hidden');
+        dom.progressBar.classList.remove('indeterminate');
         dom.progressLabel.textContent = 'Uploading...';
         dom.progressPct.textContent = '0%';
         dom.progressBar.style.width = '0%';
@@ -571,14 +585,12 @@
         if (state.pollTimer) clearInterval(state.pollTimer);
 
         dom.progressLabel.textContent = 'Processing...';
-        dom.progressBar.style.width = '100%';
+        dom.progressPct.textContent = '';
+        dom.progressDetail.textContent = 'Your file is being processed. This may take a moment.';
 
+        dom.progressBar.classList.add('indeterminate');
         dom.progressBar.style.transition = 'none';
-        dom.progressBar.style.width = '30%';
-        requestAnimationFrame(() => {
-            dom.progressBar.style.transition = 'width 30s ease-out';
-            dom.progressBar.style.width = '90%';
-        });
+        dom.progressBar.style.width = '100%';
 
         state.pollTimer = setInterval(pollJob, 2000);
     }
@@ -599,7 +611,7 @@
 
             switch (job.status) {
                 case 'pending':
-                    dom.progressLabel.textContent = 'Queued — waiting for worker...';
+                    dom.progressLabel.textContent = 'Queued - waiting for worker...';
                     dom.progressDetail.textContent = 'Your job is in the queue.';
                     break;
 
@@ -663,6 +675,12 @@
         dom.resultSuccess.classList.remove('hidden');
         dom.resultError.classList.add('hidden');
         dom.resultSection.classList.remove('hidden');
+
+        state.startOver = true;
+        dom.btnProcess.disabled = false;
+        dom.btnProcess.classList.remove('btn-primary');
+        dom.btnProcess.classList.add('btn-secondary');
+        dom.btnText.textContent = 'Start Over';
     }
 
     function showError(message) {
@@ -683,11 +701,16 @@
         stopPolling();
         state.jobId = null;
         state.uploading = false;
+        state.startOver = false;
 
         dom.progressSection.classList.add('hidden');
         dom.resultSection.classList.add('hidden');
+        dom.progressBar.classList.remove('indeterminate');
         dom.progressBar.style.transition = 'width 200ms ease';
         dom.progressBar.style.width = '0%';
+
+        dom.btnProcess.classList.remove('btn-secondary');
+        dom.btnProcess.classList.add('btn-primary');
 
         buildOptionsPanel();
 
