@@ -167,7 +167,7 @@ body {
     font-weight: 500;
     cursor: pointer;
     white-space: nowrap;
-    transition: all var(--transition-base);
+    transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
     position: relative;
 }
 
@@ -746,10 +746,6 @@ body {
     display: none !important;
 }
 
-.slide-content {
-    animation: slideIn 0.3s ease forwards;
-}
-
 @keyframes fadeSlideDown {
     from {
         opacity: 0;
@@ -778,17 +774,6 @@ body {
     }
     to {
         opacity: 1;
-    }
-}
-
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateX(12px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
     }
 }
 
