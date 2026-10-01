@@ -43,6 +43,10 @@ func main() {
 	}
 	defer db.Close()
 
+	if err := db.Migrate(context.Background()); err != nil {
+		log.Fatalf("Database error: %v", err)
+	}
+
 	q, err := queue.New(cfg.RedisAddr(), cfg.RedisPoolSize)
 	if err != nil {
 		log.Fatalf("Redis error: %v", err)
@@ -115,10 +119,11 @@ func (a *app) buildRouter() chi.Router {
 		r.Get("/formats", a.handleFormats)
 		r.Get("/admin/stats", a.handleAdminStats)
 
-		r.Group(func(r chi.Router) {
-			r.Use(a.sessionMiddleware)
+		r.With(a.sessionMiddleware(true)).Post("/jobs", a.handleCreateJob)
 
-			r.Post("/jobs", a.handleCreateJob)
+		r.Group(func(r chi.Router) {
+			r.Use(a.sessionMiddleware(false))
+
 			r.Get("/jobs/{id}", a.handleGetJob)
 			r.Get("/jobs/{id}/download", a.handleDownload)
 			r.Delete("/jobs/{id}", a.handleDeleteJob)

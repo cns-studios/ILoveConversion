@@ -7,6 +7,7 @@ CREATE TABLE sessions (
     ip_address          INET NOT NULL,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_request_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    hourly_window_start TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     hourly_request_count INTEGER NOT NULL DEFAULT 0,
     total_request_count  INTEGER NOT NULL DEFAULT 0,
     is_flagged          BOOLEAN NOT NULL DEFAULT FALSE,
@@ -77,7 +78,7 @@ BEGIN
     UPDATE sessions
     SET hourly_request_count = 0
     WHERE hourly_request_count > 0
-      AND last_request_at < NOW() - INTERVAL '1 hour';
+      AND hourly_window_start < NOW() - INTERVAL '1 hour';
     GET DIAGNOSTICS affected = ROW_COUNT;
     RETURN affected;
 END;

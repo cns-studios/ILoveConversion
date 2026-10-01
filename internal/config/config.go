@@ -94,8 +94,8 @@ func Load() (*Config, error) {
 		RedisPoolSize: envInt("REDIS_POOL_SIZE", 10),
 
 		MasterKey:        masterKey,
-		RateLimitPerHour: envInt("RATE_LIMIT_PER_HOUR", 60),
-		FlagThreshold:    envInt("FLAG_THRESHOLD", 200),
+		RateLimitPerHour: envInt("RATE_LIMIT_PER_HOUR", 600),
+		FlagThreshold:    envInt("FLAG_THRESHOLD", 5000),
 
 		MaxFileSize:        envInt64("MAX_FILE_SIZE", 524288000), // 500MB default
 		StoragePath:        envStr("STORAGE_PATH", "/app/storage"),

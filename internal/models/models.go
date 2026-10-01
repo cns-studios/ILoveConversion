@@ -125,6 +125,7 @@ type Session struct {
 	IPAddress          string    `json:"ip_address"`
 	CreatedAt          time.Time `json:"created_at"`
 	LastRequestAt      time.Time `json:"last_request_at"`
+	HourlyWindowStart  time.Time `json:"hourly_window_start"`
 	HourlyRequestCount int       `json:"hourly_request_count"`
 	TotalRequestCount  int       `json:"total_request_count"`
 	IsFlagged          bool      `json:"is_flagged"`

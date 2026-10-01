@@ -104,7 +104,7 @@
         checkConsent();
         await loadFormats();
         bindEvents();
-        switchTool('image_convert');
+        switchTool('image_convert', true);
     }
 
     function checkConsent() {
@@ -218,7 +218,8 @@
         });
     }
 
-    function switchTool(tool) {
+    function switchTool(tool, force) {
+        if (!force && tool === state.activeTool) return;
         state.activeTool = tool;
 
         dom.tabs().forEach((tab) => {
@@ -238,11 +239,6 @@
             dom.btnProcess.classList.add('hidden');
             dom.btnDownloadQr.classList.add('hidden');
             switchQrType();
-            
-            const workspace = $('.workspace');
-            workspace.classList.remove('slide-content');
-            void workspace.offsetWidth;
-            workspace.classList.add('slide-content');
         } else {
             // File mode
             dom.qrInputSection.classList.add('hidden');
@@ -251,15 +247,9 @@
             dom.btnProcess.classList.remove('hidden');
             dom.acceptedFormats.classList.remove('hidden');
             updateAcceptedFormats();
-            buildOptionsPanel();
             clearFile();
             resetUI();
             updateFileInputAccept();
-            
-            const workspace = $('.workspace');
-            workspace.classList.remove('slide-content');
-            void workspace.offsetWidth;
-            workspace.classList.add('slide-content');
         }
     }
 
