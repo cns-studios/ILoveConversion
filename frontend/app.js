@@ -1,49 +1,92 @@
 (function () {
     'use strict';
 
+    const $ = (sel, root = document) => root.querySelector(sel);
+    const $$ = (sel, root = document) => root.querySelectorAll(sel);
+
     const state = {
-        activeTool: 'image_convert',
-        selectedFile: null,
-        jobId: null,
-        pollTimer: null,
+        activeTab: 'convert',
         formats: null,
-        uploading: false,
-        startOver: false,
+        tools: {},
+        qrCodeData: null,
     };
 
-    const $ = (sel) => document.querySelector(sel);
-    const $$ = (sel) => document.querySelectorAll(sel);
+    const POLL_INTERVAL = 2000;
+    // Video "conversion" runs through the video_compress operation, so keep quality high.
+    const VIDEO_CONVERT_QUALITY = 85;
+
+    const ICON_DOWNLOAD = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.25V2.25M12.75 7.5L9 11.25L5.25 7.5M15.75 11.25V14.25C15.75 14.6478 15.592 15.0294 15.3107 15.3107C15.0294 15.592 14.6478 15.75 14.25 15.75H3.75C3.35218 15.75 2.97064 15.592 2.68934 15.3107C2.40804 15.0294 2.25 14.6478 2.25 14.25V11.25"/></svg>';
+    const ICON_X = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 4.5L4.5 13.5M4.5 4.5L13.5 13.5"/></svg>';
+
+    const CATEGORY_LABELS = { image: 'images', audio: 'audio files', video: 'videos', pdf: 'PDFs' };
+
+    // Which backend operation handles each file category, per tab.
+    const MODES = {
+        convert: {
+            verb: 'Convert',
+            progressVerb: 'Converting',
+            ops: { image: 'image_convert', audio: 'audio_convert', video: 'video_compress' },
+        },
+        compress: {
+            verb: 'Compress',
+            progressVerb: 'Compressing',
+            ops: { image: 'image_compress', audio: 'audio_compress', video: 'video_compress', pdf: 'pdf_compress' },
+        },
+    };
+
+    // Formats used to detect a file's category from its extension.
+    const CATEGORY_SOURCE = {
+        image: 'image_convert',
+        audio: 'audio_convert',
+        video: 'video_compress',
+        pdf: 'pdf_compress',
+    };
+
+    const MIME_MAP = {
+        jpeg: 'image/jpeg', jpg: 'image/jpeg', png: 'image/png',
+        webp: 'image/webp', tiff: 'image/tiff', tif: 'image/tiff',
+        gif: 'image/gif', avif: 'image/avif', heif: 'image/heif',
+        heic: 'image/heic', bmp: 'image/bmp', pdf: 'application/pdf',
+        mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac',
+        ogg: 'audio/ogg', opus: 'audio/opus', aac: 'audio/aac',
+        m4a: 'audio/mp4', aiff: 'audio/aiff', wma: 'audio/x-ms-wma',
+        mp4: 'video/mp4', mkv: 'video/x-matroska', webm: 'video/webm',
+        avi: 'video/x-msvideo', mov: 'video/quicktime',
+    };
+
+    const FALLBACK_FORMATS = {
+        image_convert: {
+            input: ['jpeg', 'jpg', 'png', 'webp', 'tiff', 'tif', 'gif', 'avif', 'heif', 'heic', 'bmp'],
+            output: ['jpeg', 'png', 'webp', 'tiff', 'gif', 'avif', 'heif', 'bmp'],
+        },
+        image_compress: {
+            input: ['jpeg', 'jpg', 'png', 'webp', 'tiff', 'tif', 'gif', 'avif', 'heif', 'heic', 'bmp'],
+        },
+        image_remove_bg: {
+            input: ['jpeg', 'jpg', 'png', 'webp', 'tiff', 'tif', 'bmp'],
+            output: ['png', 'webp'],
+            default_output: 'png',
+        },
+        pdf_compress: { input: ['pdf'], output: ['pdf'] },
+        audio_convert: {
+            input: ['mp3', 'wav', 'flac', 'ogg', 'opus', 'aac', 'm4a', 'aiff', 'wma'],
+            output: ['mp3', 'wav', 'flac', 'ogg', 'opus', 'aac', 'm4a', 'aiff'],
+        },
+        audio_compress: {
+            input: ['mp3', 'wav', 'flac', 'ogg', 'opus', 'aac', 'm4a', 'aiff', 'wma'],
+        },
+        video_compress: {
+            input: ['mp4', 'mkv', 'webm', 'avi', 'mov'],
+            output: ['mp4', 'mkv', 'webm'],
+        },
+    };
 
     const dom = {
         tabs: () => $$('.tab'),
-        dropzone: $('#dropzone'),
-        fileInput: $('#file-input'),
-        fileInfo: $('#file-info'),
-        fileName: $('#file-name'),
-        fileSize: $('#file-size'),
-        fileClear: $('#file-clear'),
-        acceptedFormats: $('#accepted-formats'),
-        optionsPanel: $('#options-panel'),
-        btnProcess: $('#btn-process'),
-        btnText: $('#btn-text'),
-        btnDownloadQr: $('#btn-download-qr'),
-        progressSection: $('#progress-section'),
-        progressLabel: $('#progress-label'),
-        progressPct: $('#progress-pct'),
-        progressBar: $('#progress-bar'),
-        progressDetail: $('#progress-detail'),
-        resultSection: $('#result-section'),
-        resultSuccess: $('#result-success'),
-        resultError: $('#result-error'),
-        resultInputSize: $('#result-input-size'),
-        resultOutputSize: $('#result-output-size'),
-        resultSavings: $('#result-savings'),
-        resultDownload: $('#result-download'),
-        errorMessage: $('#error-message'),
-        btnRetry: $('#btn-retry'),
-        qrInputSection: $('#qr-input-section'),
+        panels: () => $$('.tool-panel'),
         qrOutputSection: $('#qr-output-section'),
         qrResultCanvas: $('#qr-result-canvas'),
+        btnDownloadQr: $('#btn-download-qr'),
         qrType: $('#qr-type'),
         qrUrlInput: $('#qr-url-input'),
         qrTextInput: $('#qr-text-input'),
@@ -56,55 +99,13 @@
         qrWifiHidden: $('#qr-wifi-hidden'),
     };
 
-    const toolConfig = {
-        image_convert: {
-            label: 'Convert Image',
-            action: 'Convert',
-            options: ['output_format'],
-        },
-        image_compress: {
-            label: 'Compress Image',
-            action: 'Compress',
-            options: ['quality', 'lossless'],
-        },
-        image_remove_bg: {
-            label: 'Remove Background',
-            action: 'Remove Background',
-            options: ['output_format_bg'],
-        },
-        pdf_compress: {
-            label: 'Compress PDF',
-            action: 'Compress',
-            options: ['image_dpi', 'image_quality'],
-        },
-        audio_convert: {
-            label: 'Convert Audio',
-            action: 'Convert',
-            options: ['output_format'],
-        },
-        audio_compress: {
-            label: 'Compress Audio',
-            action: 'Compress',
-            options: ['quality', 'lossless'],
-        },
-        video_compress: {
-            label: 'Compress Video',
-            action: 'Compress',
-            options: ['output_format', 'quality'],
-        },
-        qr_code: {
-            label: 'Generate QR Code',
-            action: 'Generate',
-            options: [],
-            isBrowserOnly: true,
-        },
-    };
-
     async function init() {
         checkConsent();
         await loadFormats();
+        state.tools.convert = createFileTool('convert', $('#panel-convert'));
+        state.tools.compress = createFileTool('compress', $('#panel-compress'));
         bindEvents();
-        switchTool('image_convert', true);
+        switchQrType();
     }
 
     function checkConsent() {
@@ -125,77 +126,33 @@
         }
 
         if (!state.formats) {
-            state.formats = {
-                image_convert: {
-                    input: ['jpeg', 'jpg', 'png', 'webp', 'tiff', 'tif', 'gif', 'avif', 'heif', 'heic', 'bmp'],
-                    output: ['jpeg', 'png', 'webp', 'tiff', 'gif', 'avif', 'heif', 'bmp'],
-                },
-                image_compress: {
-                    input: ['jpeg', 'jpg', 'png', 'webp', 'tiff', 'tif', 'gif', 'avif', 'heif', 'heic', 'bmp'],
-                },
-                image_remove_bg: {
-                    input: ['jpeg', 'jpg', 'png', 'webp', 'tiff', 'tif', 'bmp'],
-                    output: ['png', 'webp'],
-                    default_output: 'png',
-                },
-                pdf_compress: { input: ['pdf'], output: ['pdf'] },
-                audio_convert: {
-                    input: ['mp3', 'wav', 'flac', 'ogg', 'opus', 'aac', 'm4a', 'aiff', 'wma'],
-                    output: ['mp3', 'wav', 'flac', 'ogg', 'opus', 'aac', 'm4a', 'aiff'],
-                },
-                audio_compress: {
-                    input: ['mp3', 'wav', 'flac', 'ogg', 'opus', 'aac', 'm4a', 'aiff', 'wma'],
-                },
-                video_compress: {
-                    input: ['mp4', 'mkv', 'webm', 'avi', 'mov'],
-                    output: ['mp4', 'mkv', 'webm'],
-                },
-                qr_code: {},
-            };
+            state.formats = FALLBACK_FORMATS;
         }
+    }
+
+    function formatsFor(operation) {
+        return state.formats[operation] || FALLBACK_FORMATS[operation] || {};
     }
 
     function bindEvents() {
         dom.tabs().forEach((tab) => {
-            tab.addEventListener('click', () => switchTool(tab.dataset.tool));
+            tab.addEventListener('click', () => switchTab(tab.dataset.tool));
+        });
+
+        $$('.mode-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                if (btn.dataset.mode === 'local') {
+                    showAlert('Local mode, where files are processed entirely in your browser, is not available yet. Online mode encrypts your files and deletes them after 24 hours.', 'Local mode');
+                }
+            });
         });
 
         $('#btn-alert-close').addEventListener('click', () => {
             $('#alert-modal').classList.add('hidden');
         });
 
-        dom.fileInput.addEventListener('change', handleFileSelect);
-
-        dom.dropzone.addEventListener('click', () => dom.fileInput.click());
-        dom.dropzone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dom.dropzone.classList.add('drag-over');
-        });
-        dom.dropzone.addEventListener('dragleave', () => {
-            dom.dropzone.classList.remove('drag-over');
-        });
-        dom.dropzone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dom.dropzone.classList.remove('drag-over');
-            if (e.dataTransfer.files.length > 0) {
-                setFile(e.dataTransfer.files[0]);
-            }
-        });
-
-        dom.fileClear.addEventListener('click', (e) => {
-            e.stopPropagation();
-            clearFile();
-        });
-
-        dom.btnProcess.addEventListener('click', handleProcessClick);
-
-        dom.btnRetry.addEventListener('click', () => {
-            resetUI();
-        });
-
         dom.btnDownloadQr.addEventListener('click', downloadQrCode);
 
-        // QR Code specific events
         dom.qrType.addEventListener('change', switchQrType);
         dom.qrUrlInput.addEventListener('input', generateQrCode);
         dom.qrTextInput.addEventListener('input', generateQrCode);
@@ -218,505 +175,610 @@
         });
     }
 
-    function switchTool(tool, force) {
-        if (!force && tool === state.activeTool) return;
-        state.activeTool = tool;
+    // Each tab keeps its own panel and state, so switching never interrupts running jobs.
+    function switchTab(tab) {
+        if (tab === state.activeTab) return;
+        state.activeTab = tab;
 
-        dom.tabs().forEach((tab) => {
-            const isActive = tab.dataset.tool === tool;
-            tab.classList.toggle('active', isActive);
-            tab.setAttribute('aria-selected', isActive);
+        dom.tabs().forEach((el) => {
+            const isActive = el.dataset.tool === tab;
+            el.classList.toggle('active', isActive);
+            el.setAttribute('aria-selected', isActive);
         });
-
-        const isQrCode = toolConfig[tool].isBrowserOnly;
-
-        if (isQrCode) {
-            // QR Code mode
-            dom.dropzone.classList.add('hidden');
-            dom.fileInfo.classList.add('hidden');
-            dom.optionsPanel.classList.add('hidden');
-            dom.qrInputSection.classList.remove('hidden');
-            dom.btnProcess.classList.add('hidden');
-            dom.btnDownloadQr.classList.add('hidden');
-            switchQrType();
-        } else {
-            // File mode
-            dom.qrInputSection.classList.add('hidden');
-            dom.qrOutputSection.classList.add('hidden');
-            dom.btnDownloadQr.classList.add('hidden');
-            dom.btnProcess.classList.remove('hidden');
-            dom.acceptedFormats.classList.remove('hidden');
-            updateAcceptedFormats();
-            clearFile();
-            resetUI();
-            updateFileInputAccept();
-        }
+        dom.panels().forEach((panel) => {
+            panel.classList.toggle('hidden', panel.dataset.panel !== tab);
+        });
     }
 
-    function updateAcceptedFormats() {
-        const toolFormats = state.formats[state.activeTool];
-        if (toolFormats && toolFormats.input) {
-            const exts = toolFormats.input.map((f) => '.' + f).join(', ');
-            dom.acceptedFormats.textContent = 'Accepts: ' + exts;
-        } else {
-            dom.acceptedFormats.textContent = '';
-        }
-    }
+    /* ---------- File tools (Convert / Compress) ---------- */
 
-    function updateFileInputAccept() {
-        const toolFormats = state.formats[state.activeTool];
-        if (toolFormats && toolFormats.input) {
-            const mimeMap = {
-                jpeg: 'image/jpeg', jpg: 'image/jpeg', png: 'image/png',
-                webp: 'image/webp', tiff: 'image/tiff', tif: 'image/tiff',
-                gif: 'image/gif', avif: 'image/avif', heif: 'image/heif',
-                heic: 'image/heic', bmp: 'image/bmp', pdf: 'application/pdf',
-                mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac',
-                ogg: 'audio/ogg', opus: 'audio/opus', aac: 'audio/aac',
-                m4a: 'audio/mp4', aiff: 'audio/aiff', wma: 'audio/x-ms-wma',
-                mp4: 'video/mp4', mkv: 'video/x-matroska', webm: 'video/webm',
-                avi: 'video/x-msvideo', mov: 'video/quicktime',
-            };
-            const accepts = toolFormats.input
-                .map((f) => mimeMap[f] || '.' + f)
-                .join(',');
-            dom.fileInput.setAttribute('accept', accepts);
-        }
-    }
+    function createFileTool(mode, panel) {
+        panel.appendChild($('#tpl-file-tool').content.cloneNode(true));
 
-    function buildOptionsPanel() {
-        const config = toolConfig[state.activeTool];
-        if (!config || !config.options || config.options.length === 0) {
-            dom.optionsPanel.classList.add('hidden');
-            return;
-        }
+        const refs = {};
+        $$('[data-ref]', panel).forEach((el) => { refs[el.dataset.ref] = el; });
 
-        let html = '';
+        const tool = {
+            mode,
+            config: MODES[mode],
+            refs,
+            category: null,
+            files: [],
+            uploading: false,
+            nextId: 1,
+        };
 
-        config.options.forEach((opt) => {
-            switch (opt) {
-                case 'output_format':
-                    html += buildFormatSelect();
-                    break;
-                case 'output_format_bg':
-                    html += buildBgFormatSelect();
-                    break;
-                case 'quality':
-                    html += buildQualitySlider();
-                    break;
-                case 'image_quality':
-                    html += buildImageQualitySlider();
-                    break;
-                case 'lossless':
-                    html += buildLosslessCheckbox();
-                    break;
-                case 'image_dpi':
-                    html += buildDpiSelect();
-                    break;
+        const categories = Object.keys(tool.config.ops);
+        const inputExts = [];
+        categories.forEach((cat) => {
+            (formatsFor(CATEGORY_SOURCE[cat]).input || []).forEach((ext) => {
+                if (!inputExts.includes(ext)) inputExts.push(ext);
+            });
+        });
+        tool.inputExts = inputExts;
+
+        refs.formats.textContent = categories.map((c) => CATEGORY_LABELS[c]).join(', ')
+            .replace(/^./, (c) => c.toUpperCase())
+            .replace(/, ([^,]*)$/, ' and $1');
+        refs.formats.title = inputExts.map((f) => '.' + f).join(', ');
+        refs.input.setAttribute('accept', inputExts.map((f) => MIME_MAP[f] || '.' + f)
+            .concat(inputExts.map((f) => '.' + f)).join(','));
+
+        refs.dropzone.addEventListener('click', () => refs.input.click());
+        refs.dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            refs.dropzone.classList.add('drag-over');
+        });
+        refs.dropzone.addEventListener('dragleave', (e) => {
+            if (!refs.dropzone.contains(e.relatedTarget)) {
+                refs.dropzone.classList.remove('drag-over');
             }
         });
+        refs.dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            refs.dropzone.classList.remove('drag-over');
+            addFiles(tool, e.dataTransfer.files);
+        });
+        refs.input.addEventListener('change', () => {
+            addFiles(tool, refs.input.files);
+            refs.input.value = '';
+        });
+        refs.action.addEventListener('click', () => handleAction(tool));
 
-        dom.optionsPanel.innerHTML = html;
-        dom.optionsPanel.classList.remove('hidden');
-        bindOptionEvents();
+        return tool;
     }
 
-    function buildFormatSelect() {
-        const toolFormats = state.formats[state.activeTool];
-        const outputs = toolFormats && toolFormats.output ? toolFormats.output : [];
-        if (outputs === 'same_as_input' || outputs.length === 0) return '';
-
-        const options = outputs.map(f => ({ value: f, label: f.toUpperCase() }));
-        return buildNativeSelect('Output Format', 'opt-output-format', options, outputs[0]);
+    function categoryOf(tool, ext) {
+        return Object.keys(tool.config.ops).find((cat) =>
+            (formatsFor(CATEGORY_SOURCE[cat]).input || []).includes(ext)) || null;
     }
 
-    function buildBgFormatSelect() {
-        const toolFormats = state.formats[state.activeTool];
-        const outputs = toolFormats && toolFormats.output ? toolFormats.output : ['png', 'webp'];
-        const defaultOut = (toolFormats && toolFormats.default_output) || 'png';
+    function addFiles(tool, fileList) {
+        const unsupported = [];
+        const mismatched = [];
 
-        const options = outputs.map(f => ({ value: f, label: f.toUpperCase() }));
-        return buildNativeSelect('Output Format', 'opt-output-format', options, defaultOut);
-    }
-
-    function buildQualitySlider() {
-        const defaults = { image_compress: 80, audio_compress: 70, video_compress: 65 };
-        const defaultVal = defaults[state.activeTool] || 75;
-
-        return `
-            <div class="option-group">
-                <label class="option-label">Quality</label>
-                <div class="option-range-row">
-                    <span class="option-range-value" style="min-width:5ch;text-align:left;color:var(--text-muted);font-weight:400">Smaller</span>
-                    <input type="range" class="option-range" id="opt-quality" min="1" max="100" value="${defaultVal}">
-                    <span class="option-range-value" id="opt-quality-value">${defaultVal}</span>
-                    <span class="option-range-value" style="min-width:5ch;text-align:right;color:var(--text-muted);font-weight:400">Better</span>
-                </div>
-            </div>`;
-    }
-
-    function buildImageQualitySlider() {
-        return `
-            <div class="option-group">
-                <label class="option-label">Image Quality in PDF</label>
-                <div class="option-range-row">
-                    <span class="option-range-value" style="min-width:5ch;text-align:left;color:var(--text-muted);font-weight:400">Smaller</span>
-                    <input type="range" class="option-range" id="opt-image-quality" min="1" max="100" value="75">
-                    <span class="option-range-value" id="opt-image-quality-value">75</span>
-                    <span class="option-range-value" style="min-width:5ch;text-align:right;color:var(--text-muted);font-weight:400">Better</span>
-                </div>
-            </div>`;
-    }
-
-    function buildLosslessCheckbox() {
-        return `
-            <div class="option-group">
-                <div class="option-checkbox-row">
-                    <input type="checkbox" class="option-checkbox" id="opt-lossless">
-                    <label class="option-checkbox-label" for="opt-lossless">Lossless compression (if supported by format)</label>
-                </div>
-            </div>`;
-    }
-
-    function buildDpiSelect() {
-        const options = [
-            { value: '72', label: '72 DPI - Smallest' },
-            { value: '150', label: '150 DPI - Balanced' },
-            { value: '300', label: '300 DPI - High Quality' },
-            { value: '600', label: '600 DPI - Maximum' }
-        ];
-        return buildNativeSelect('Image DPI in PDF', 'opt-image-dpi', options, '150');
-    }
-
-    function buildNativeSelect(label, id, options, defaultValue) {
-        const optionsHtml = options.map(o => `
-            <option value="${o.value}" ${o.value === defaultValue ? 'selected' : ''}>
-                ${o.label}
-            </option>
-        `).join('');
-
-        return `
-            <div class="option-group">
-                <label class="option-label" for="${id}">${label}</label>
-                <select class="option-select" id="${id}">
-                    ${optionsHtml}
-                </select>
-            </div>`;
-    }
-
-    function bindOptionEvents() {
-        const qualitySlider = $('#opt-quality');
-        if (qualitySlider) {
-            qualitySlider.addEventListener('input', () => {
-                $('#opt-quality-value').textContent = qualitySlider.value;
-            });
-        }
-
-        const imgQualitySlider = $('#opt-image-quality');
-        if (imgQualitySlider) {
-            imgQualitySlider.addEventListener('input', () => {
-                $('#opt-image-quality-value').textContent = imgQualitySlider.value;
-            });
-        }
-
-        const losslessCheckbox = $('#opt-lossless');
-        if (losslessCheckbox && qualitySlider) {
-            losslessCheckbox.addEventListener('change', () => {
-                qualitySlider.disabled = losslessCheckbox.checked;
-                qualitySlider.style.opacity = losslessCheckbox.checked ? '0.3' : '1';
-            });
-        }
-    }
-
-    function gatherParams() {
-        const params = {};
-        const formatSelect = $('#opt-output-format');
-        if (formatSelect) params.output_format = formatSelect.value;
-
-        const quality = $('#opt-quality');
-        if (quality) params.quality = parseInt(quality.value, 10);
-
-        const lossless = $('#opt-lossless');
-        if (lossless) params.lossless = lossless.checked;
-
-        const dpi = $('#opt-image-dpi');
-        if (dpi) params.image_dpi = parseInt(dpi.value, 10);
-
-        const imgQuality = $('#opt-image-quality');
-        if (imgQuality) params.image_quality = parseInt(imgQuality.value, 10);
-
-        return params;
-    }
-
-    function handleFileSelect(e) {
-        if (e.target.files.length > 0) {
-            setFile(e.target.files[0]);
-        }
-    }
-
-    function setFile(file) {
-        const toolFormats = state.formats[state.activeTool];
-        if (toolFormats && toolFormats.input) {
+        Array.from(fileList).forEach((file) => {
             const ext = getExtension(file.name);
-            if (!toolFormats.input.includes(ext)) {
-                showInlineError(
-                    `Unsupported format: .${ext}\nAccepted: ${toolFormats.input.map((f) => '.' + f).join(', ')}`
-                );
+            const category = categoryOf(tool, ext);
+            if (!category) {
+                unsupported.push(file.name);
                 return;
             }
+            if (tool.category && category !== tool.category) {
+                mismatched.push(file.name);
+                return;
+            }
+            if (!tool.category) {
+                tool.category = category;
+                buildOptions(tool);
+            }
+            addFileRow(tool, file, ext);
+        });
+
+        const messages = [];
+        if (unsupported.length) {
+            messages.push(`Unsupported file type: ${unsupported.join(', ')}\n\nSupported: ${tool.inputExts.map((f) => '.' + f).join(', ')}`);
         }
+        if (mismatched.length) {
+            messages.push(`Skipped ${mismatched.join(', ')}: all files in one batch must be ${CATEGORY_LABELS[tool.category]}. Finish or clear this batch first.`);
+        }
+        if (messages.length) showAlert(messages.join('\n\n'));
 
-        state.selectedFile = file;
-        dom.fileName.textContent = file.name;
-        dom.fileSize.textContent = formatBytes(file.size);
-        dom.fileInfo.classList.remove('hidden');
-        dom.dropzone.classList.add('hidden');
-        dom.btnProcess.disabled = false;
-        dom.btnText.textContent = toolConfig[state.activeTool].action;
+        updateTool(tool);
     }
 
-    function clearFile() {
-        state.selectedFile = null;
-        dom.fileInput.value = '';
-        dom.fileInfo.classList.add('hidden');
-        dom.dropzone.classList.remove('hidden');
-        dom.btnProcess.disabled = true;
-        dom.btnText.textContent = 'Select a file to start';
+    function addFileRow(tool, file, ext) {
+        const item = {
+            id: tool.nextId++,
+            file,
+            ext,
+            status: 'ready',
+            progress: 0,
+            jobId: null,
+            xhr: null,
+            pollTimer: null,
+            error: '',
+            job: null,
+        };
+
+        const row = document.createElement('div');
+        row.className = 'file-row';
+        row.innerHTML = `
+            <div class="file-main">
+                <span class="file-name"></span>
+                <span class="file-meta"></span>
+                <div class="file-progress hidden"><div class="file-progress-fill"></div></div>
+            </div>
+            <div class="file-actions">
+                <a class="btn-chip btn-download hidden" href="#" download><span class="btn-chip-text">Download</span>${ICON_DOWNLOAD}</a>
+                <button type="button" class="btn-chip btn-square" aria-label="Remove file" title="Remove">${ICON_X}</button>
+            </div>`;
+        $('.file-name', row).textContent = file.name;
+        $('.file-name', row).title = file.name;
+        $('.btn-square', row).addEventListener('click', () => removeFile(tool, item));
+
+        item.el = {
+            row,
+            meta: $('.file-meta', row),
+            progress: $('.file-progress', row),
+            fill: $('.file-progress-fill', row),
+            download: $('.btn-download', row),
+        };
+
+        tool.files.push(item);
+        tool.refs.list.appendChild(row);
+        renderFile(item);
     }
 
-    function handleProcessClick() {
-        if (state.startOver) {
-            clearFile();
-            resetUI();
+    function removeFile(tool, item) {
+        if (item.xhr) {
+            item.removed = true;
+            item.xhr.abort();
+        }
+        stopPolling(item);
+        if (item.jobId) {
+            fetch(`/api/jobs/${item.jobId}`, { method: 'DELETE' }).catch(() => {});
+        }
+        item.el.row.remove();
+        tool.files = tool.files.filter((f) => f !== item);
+        if (item.status === 'uploading') {
+            tool.uploading = false;
+            pump(tool);
+        }
+        if (tool.files.length === 0) {
+            resetTool(tool);
+        }
+        updateTool(tool);
+    }
+
+    function resetTool(tool) {
+        tool.files.forEach((item) => {
+            if (item.xhr) {
+                item.removed = true;
+                item.xhr.abort();
+            }
+            stopPolling(item);
+        });
+        tool.files = [];
+        tool.uploading = false;
+        tool.category = null;
+        tool.refs.list.innerHTML = '';
+        tool.refs.options.innerHTML = '';
+        updateTool(tool);
+    }
+
+    const ACTIVE_STATUSES = ['waiting', 'uploading', 'queued', 'processing'];
+
+    function updateTool(tool) {
+        const { refs, files, config } = tool;
+        const hasFiles = files.length > 0;
+
+        refs.list.classList.toggle('hidden', !hasFiles);
+        refs.options.classList.toggle('hidden', !hasFiles || !refs.options.children.length);
+        refs.action.classList.toggle('hidden', !hasFiles);
+        if (!hasFiles) return;
+
+        const active = files.filter((f) => ACTIVE_STATUSES.includes(f.status)).length;
+        const ready = files.filter((f) => f.status === 'ready').length;
+        const finished = files.filter((f) => f.status === 'done' || f.status === 'error').length;
+
+        refs.action.classList.remove('btn-muted');
+        refs.action.classList.add('btn-accent');
+
+        if (active > 0) {
+            const total = active + finished;
+            refs.action.disabled = true;
+            refs.action.textContent = total > 1
+                ? `${config.progressVerb}… ${finished}/${total}`
+                : `${config.progressVerb}…`;
+        } else if (ready > 0) {
+            refs.action.disabled = false;
+            refs.action.textContent = `${config.verb} ${ready} ${ready === 1 ? 'file' : 'files'}`;
+        } else {
+            refs.action.disabled = false;
+            refs.action.textContent = 'Start over';
+            refs.action.classList.remove('btn-accent');
+            refs.action.classList.add('btn-muted');
+        }
+    }
+
+    function handleAction(tool) {
+        const hasReady = tool.files.some((f) => f.status === 'ready');
+        if (!hasReady) {
+            resetTool(tool);
             return;
         }
-        startProcessing();
+
+        const { operation, params } = gatherParams(tool);
+        const supported = formatsFor(operation).input || [];
+
+        tool.files.forEach((item) => {
+            if (item.status !== 'ready') return;
+            item.operation = operation;
+            item.params = params;
+            if (supported.length && !supported.includes(item.ext)) {
+                item.status = 'error';
+                item.error = `.${item.ext} is not supported for this option`;
+            } else {
+                item.status = 'waiting';
+            }
+            renderFile(item);
+        });
+
+        updateTool(tool);
+        pump(tool);
     }
 
-    function startProcessing() {
-        if (!state.selectedFile || state.uploading) return;
+    // Upload one file at a time; processing on the server runs in parallel.
+    function pump(tool) {
+        if (tool.uploading) return;
+        const next = tool.files.find((f) => f.status === 'waiting');
+        if (!next) {
+            updateTool(tool);
+            return;
+        }
+        upload(tool, next);
+    }
 
-        state.uploading = true;
-        state.startOver = false;
-        dom.btnProcess.disabled = true;
-        dom.btnProcess.classList.remove('btn-secondary');
-        dom.btnProcess.classList.add('btn-primary');
-        dom.optionsPanel.classList.add('hidden');
-        dom.resultSection.classList.add('hidden');
-        dom.progressSection.classList.remove('hidden');
-        dom.progressBar.classList.remove('indeterminate');
-        dom.progressLabel.textContent = 'Uploading...';
-        dom.progressPct.textContent = '0%';
-        dom.progressBar.style.width = '0%';
-        dom.progressDetail.textContent = '';
+    function upload(tool, item) {
+        tool.uploading = true;
+        item.status = 'uploading';
+        item.progress = 0;
+        renderFile(item);
+        updateTool(tool);
 
         const formData = new FormData();
-        formData.append('file', state.selectedFile);
-        formData.append('operation', state.activeTool);
-
-        const params = gatherParams();
-        Object.keys(params).forEach((key) => {
-            formData.append(key, params[key]);
+        formData.append('file', item.file);
+        formData.append('operation', item.operation);
+        Object.keys(item.params).forEach((key) => {
+            formData.append(key, item.params[key]);
         });
 
         const xhr = new XMLHttpRequest();
+        item.xhr = xhr;
+
+        const finishUpload = () => {
+            item.xhr = null;
+            tool.uploading = false;
+            renderFile(item);
+            updateTool(tool);
+            pump(tool);
+        };
 
         xhr.upload.addEventListener('progress', (e) => {
             if (e.lengthComputable) {
-                const pct = Math.round((e.loaded / e.total) * 100);
-                dom.progressBar.style.width = pct + '%';
-                dom.progressPct.textContent = pct + '%';
-                dom.progressDetail.textContent = `${formatBytes(e.loaded)} / ${formatBytes(e.total)}`;
+                item.progress = Math.round((e.loaded / e.total) * 100);
+                renderFile(item);
             }
-        });
-
-        xhr.upload.addEventListener('load', () => {
-            dom.progressLabel.textContent = 'Processing...';
-            dom.progressPct.textContent = '';
-            dom.progressBar.style.width = '100%';
-            dom.progressDetail.textContent = 'Your file is being processed. This may take a moment.';
         });
 
         xhr.addEventListener('load', () => {
-            state.uploading = false;
             if (xhr.status >= 200 && xhr.status < 300) {
                 try {
                     const data = JSON.parse(xhr.responseText);
-                    state.jobId = data.id;
-                    startPolling();
+                    item.jobId = data.id;
+                    item.status = 'queued';
+                    startPolling(tool, item);
                 } catch (e) {
-                    showError('Invalid response from server.');
+                    setError(item, 'Invalid response from server.');
                 }
             } else {
+                let message = `Upload failed (HTTP ${xhr.status})`;
                 try {
                     const err = JSON.parse(xhr.responseText);
-                    showError(err.error || `Upload failed (HTTP ${xhr.status})`);
+                    if (err.error) message = err.error;
                 } catch (e) {
-                    showError(`Upload failed (HTTP ${xhr.status})`);
                 }
+                setError(item, message);
             }
+            finishUpload();
         });
 
         xhr.addEventListener('error', () => {
-            state.uploading = false;
-            showError('Network error. Please check your connection and try again.');
+            setError(item, 'Network error. Please check your connection and try again.');
+            finishUpload();
         });
 
         xhr.addEventListener('abort', () => {
-            state.uploading = false;
-            showError('Upload was cancelled.');
+            if (item.removed) return;
+            setError(item, 'Upload was cancelled.');
+            finishUpload();
         });
 
         xhr.open('POST', '/api/jobs');
         xhr.send(formData);
     }
 
-    function startPolling() {
-        if (state.pollTimer) clearInterval(state.pollTimer);
-
-        dom.progressLabel.textContent = 'Processing...';
-        dom.progressPct.textContent = '';
-        dom.progressDetail.textContent = 'Your file is being processed. This may take a moment.';
-
-        dom.progressBar.classList.add('indeterminate');
-        dom.progressBar.style.transition = 'none';
-        dom.progressBar.style.width = '100%';
-
-        state.pollTimer = setInterval(pollJob, 2000);
+    function startPolling(tool, item) {
+        stopPolling(item);
+        item.pollTimer = setInterval(() => pollJob(tool, item), POLL_INTERVAL);
     }
 
-    async function pollJob() {
-        if (!state.jobId) return;
+    function stopPolling(item) {
+        if (item.pollTimer) {
+            clearInterval(item.pollTimer);
+            item.pollTimer = null;
+        }
+    }
+
+    async function pollJob(tool, item) {
+        if (!item.jobId || item.polling) return;
+        item.polling = true;
 
         try {
-            const res = await fetch(`/api/jobs/${state.jobId}`);
+            const res = await fetch(`/api/jobs/${item.jobId}`);
+            if (!item.pollTimer) return;
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                showError(err.error || `Status check failed (HTTP ${res.status})`);
-                stopPolling();
-                return;
-            }
-
-            const job = await res.json();
-
-            switch (job.status) {
-                case 'pending':
-                    dom.progressLabel.textContent = 'Queued - waiting for worker...';
-                    dom.progressDetail.textContent = 'Your job is in the queue.';
-                    break;
-
-                case 'processing':
-                    dom.progressLabel.textContent = 'Processing...';
-                    dom.progressDetail.textContent = 'Your file is being processed.';
-                    break;
-
-                case 'completed':
-                    stopPolling();
-                    showSuccess(job);
-                    break;
-
-                case 'failed':
-                    stopPolling();
-                    showError(job.error_message || 'Processing failed. Please try again.');
-                    break;
-            }
-        } catch (e) {
-        }
-    }
-
-    function stopPolling() {
-        if (state.pollTimer) {
-            clearInterval(state.pollTimer);
-            state.pollTimer = null;
-        }
-    }
-
-    function showSuccess(job) {
-        dom.progressSection.classList.add('hidden');
-
-        dom.resultInputSize.textContent = formatBytes(job.input_size);
-        dom.resultOutputSize.textContent = formatBytes(job.output_size);
-
-        if (job.input_size && job.output_size && job.input_size > 0) {
-            const savings = ((1 - job.output_size / job.input_size) * 100).toFixed(1);
-            if (savings > 0) {
-                dom.resultSavings.textContent = `(${savings}% smaller)`;
-                dom.resultSavings.style.color = 'var(--success)';
-            } else if (savings < 0) {
-                dom.resultSavings.textContent = `(${Math.abs(savings)}% larger)`;
-                dom.resultSavings.style.color = 'var(--warning)';
+                stopPolling(item);
+                setError(item, err.error || `Status check failed (HTTP ${res.status})`);
             } else {
-                dom.resultSavings.textContent = '(same size)';
-                dom.resultSavings.style.color = 'var(--text-muted)';
+                const job = await res.json();
+                switch (job.status) {
+                    case 'pending':
+                        item.status = 'queued';
+                        break;
+                    case 'processing':
+                        item.status = 'processing';
+                        break;
+                    case 'completed':
+                        stopPolling(item);
+                        item.status = 'done';
+                        item.job = job;
+                        break;
+                    case 'failed':
+                        stopPolling(item);
+                        setError(item, job.error_message || 'Processing failed. Please try again.');
+                        break;
+                }
             }
-        } else {
-            dom.resultSavings.textContent = '';
+            renderFile(item);
+            updateTool(tool);
+        } catch (e) {
+        } finally {
+            item.polling = false;
+        }
+    }
+
+    function setError(item, message) {
+        item.status = 'error';
+        item.error = message;
+    }
+
+    function renderFile(item) {
+        const { row, meta, progress, fill, download } = item.el;
+        const size = formatBytes(item.file.size);
+
+        row.classList.toggle('is-error', item.status === 'error');
+        download.classList.toggle('hidden', item.status !== 'done');
+        progress.classList.toggle('hidden', !['uploading', 'queued', 'processing'].includes(item.status));
+        fill.classList.toggle('indeterminate', item.status === 'queued' || item.status === 'processing');
+        fill.style.width = item.status === 'uploading' ? item.progress + '%' : '';
+
+        switch (item.status) {
+            case 'ready':
+                meta.textContent = size;
+                break;
+            case 'waiting':
+                meta.textContent = `${size} · Waiting…`;
+                break;
+            case 'uploading':
+                meta.textContent = `${size} · Uploading ${item.progress}%`;
+                break;
+            case 'queued':
+                meta.textContent = `${size} · In queue…`;
+                break;
+            case 'processing':
+                meta.textContent = `${size} · Processing…`;
+                break;
+            case 'error':
+                meta.textContent = item.error;
+                break;
+            case 'done':
+                renderDone(item);
+                break;
+        }
+    }
+
+    function renderDone(item) {
+        const { meta, download } = item.el;
+        const job = item.job || {};
+        const inSize = job.input_size || item.file.size;
+        const outSize = job.output_size;
+
+        meta.textContent = `${formatBytes(inSize)} → ${formatBytes(outSize)}`;
+        if (inSize > 0 && outSize) {
+            const savings = (1 - outSize / inSize) * 100;
+            const note = document.createElement('span');
+            if (savings >= 0.1) {
+                note.textContent = ` · ${savings.toFixed(1)}% smaller`;
+                note.className = 'is-success';
+            } else if (savings <= -0.1) {
+                note.textContent = ` · ${Math.abs(savings).toFixed(1)}% larger`;
+                note.className = 'is-warning';
+            }
+            meta.appendChild(note);
         }
 
-        dom.resultDownload.href = `/api/jobs/${state.jobId}/download`;
-
-        const origName = state.selectedFile ? state.selectedFile.name : 'output';
+        const origName = item.file.name;
         const baseName = origName.substring(0, origName.lastIndexOf('.')) || origName;
         const outExt = job.output_filename
             ? job.output_filename.substring(job.output_filename.lastIndexOf('.'))
             : '';
-        dom.resultDownload.setAttribute('download', baseName + '-iloveconversion' + outExt);
-
-        dom.resultSuccess.classList.remove('hidden');
-        dom.resultError.classList.add('hidden');
-        dom.resultSection.classList.remove('hidden');
-
-        state.startOver = true;
-        dom.btnProcess.disabled = false;
-        dom.btnProcess.classList.remove('btn-primary');
-        dom.btnProcess.classList.add('btn-secondary');
-        dom.btnText.textContent = 'Start Over';
+        download.href = `/api/jobs/${item.jobId}/download`;
+        download.setAttribute('download', baseName + '-iloveconversion' + outExt);
     }
 
-    function showError(message) {
-        dom.progressSection.classList.add('hidden');
-        dom.errorMessage.textContent = message;
-        dom.resultSuccess.classList.add('hidden');
-        dom.resultError.classList.remove('hidden');
-        dom.resultSection.classList.remove('hidden');
+    /* ---------- Options ---------- */
+
+    function buildOptions(tool) {
+        const operation = tool.config.ops[tool.category];
+        const formats = formatsFor(operation);
+        let html = '';
+
+        if (tool.mode === 'convert') {
+            const outputs = Array.isArray(formats.output) ? formats.output : [];
+            let optionsHtml = outputs.map((f) => `<option value="${f}">${f.toUpperCase()}</option>`).join('');
+            if (tool.category === 'image') {
+                const bg = formatsFor('image_remove_bg');
+                const bgOutputs = Array.isArray(bg.output) ? bg.output : ['png', 'webp'];
+                optionsHtml += `<optgroup label="Remove background">${bgOutputs
+                    .map((f) => `<option value="bg:${f}">${f.toUpperCase()} · transparent</option>`).join('')}</optgroup>`;
+            }
+            html += selectRow('Convert to', 'output-format', optionsHtml);
+        } else {
+            switch (tool.category) {
+                case 'image':
+                    html += rangeRow('Quality', 'quality', 80);
+                    html += switchRow('Lossless', 'lossless');
+                    break;
+                case 'audio':
+                    html += rangeRow('Quality', 'quality', 70);
+                    html += switchRow('Lossless', 'lossless');
+                    break;
+                case 'video': {
+                    const outputs = Array.isArray(formats.output) ? formats.output : [];
+                    html += selectRow('Format', 'output-format', '<option value="">Keep original</option>' +
+                        outputs.map((f) => `<option value="${f}">${f.toUpperCase()}</option>`).join(''));
+                    html += rangeRow('Quality', 'quality', 65);
+                    break;
+                }
+                case 'pdf':
+                    html += selectRow('Image DPI', 'image-dpi', [
+                        ['72', '72 · Smallest'],
+                        ['150', '150 · Balanced'],
+                        ['300', '300 · High quality'],
+                        ['600', '600 · Maximum'],
+                    ].map(([v, l]) => `<option value="${v}"${v === '150' ? ' selected' : ''}>${l}</option>`).join(''));
+                    html += rangeRow('Image quality', 'image-quality', 75);
+                    break;
+            }
+        }
+
+        const opts = tool.refs.options;
+        opts.innerHTML = html;
+
+        $$('.option-range', opts).forEach((range) => {
+            const value = $(`[data-value-for="${range.dataset.opt}"]`, opts);
+            const sync = () => {
+                value.textContent = range.value;
+                range.style.setProperty('--fill', ((range.value - range.min) / (range.max - range.min) * 100) + '%');
+            };
+            range.addEventListener('input', sync);
+            sync();
+        });
+
+        const lossless = $('[data-opt="lossless"]', opts);
+        const quality = $('[data-opt="quality"]', opts);
+        if (lossless && quality) {
+            lossless.addEventListener('change', () => {
+                quality.disabled = lossless.checked;
+            });
+        }
     }
 
-    function showInlineError(message, title = 'Info') {
+    function optId(name) {
+        return `opt-${name}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    function selectRow(label, name, optionsHtml) {
+        const id = optId(name);
+        return `
+            <div class="option-row">
+                <label class="option-label" for="${id}">${label}</label>
+                <select class="option-select" id="${id}" data-opt="${name}">${optionsHtml}</select>
+            </div>`;
+    }
+
+    function rangeRow(label, name, value) {
+        const id = optId(name);
+        return `
+            <div class="option-row">
+                <label class="option-label" for="${id}">${label}</label>
+                <div class="option-range-wrap">
+                    <input type="range" class="option-range" id="${id}" data-opt="${name}" min="1" max="100" value="${value}">
+                    <span class="option-range-value" data-value-for="${name}">${value}</span>
+                </div>
+            </div>`;
+    }
+
+    function switchRow(label, name) {
+        const id = optId(name);
+        return `
+            <label class="option-row switch-row" for="${id}">
+                <span class="switch-label">${label}</span>
+                <input type="checkbox" class="switch" id="${id}" data-opt="${name}">
+            </label>`;
+    }
+
+    function gatherParams(tool) {
+        const opts = tool.refs.options;
+        const get = (name) => $(`[data-opt="${name}"]`, opts);
+        let operation = tool.config.ops[tool.category];
+        const params = {};
+
+        const format = get('output-format');
+        if (format && format.value) {
+            if (format.value.startsWith('bg:')) {
+                operation = 'image_remove_bg';
+                params.output_format = format.value.slice(3);
+            } else {
+                params.output_format = format.value;
+            }
+        }
+
+        if (tool.mode === 'convert' && operation === 'video_compress') {
+            params.quality = VIDEO_CONVERT_QUALITY;
+        }
+
+        const quality = get('quality');
+        if (quality) params.quality = parseInt(quality.value, 10);
+
+        const lossless = get('lossless');
+        if (lossless) params.lossless = lossless.checked;
+
+        const dpi = get('image-dpi');
+        if (dpi) params.image_dpi = parseInt(dpi.value, 10);
+
+        const imgQuality = get('image-quality');
+        if (imgQuality) params.image_quality = parseInt(imgQuality.value, 10);
+
+        return { operation, params };
+    }
+
+    /* ---------- Helpers ---------- */
+
+    function showAlert(message, title = 'Info') {
         $('#alert-title').textContent = title;
         $('#alert-text').textContent = message;
         $('#alert-modal').classList.remove('hidden');
-    }
-
-    function resetUI() {
-        stopPolling();
-        state.jobId = null;
-        state.uploading = false;
-        state.startOver = false;
-
-        dom.progressSection.classList.add('hidden');
-        dom.resultSection.classList.add('hidden');
-        dom.progressBar.classList.remove('indeterminate');
-        dom.progressBar.style.transition = 'width 200ms ease';
-        dom.progressBar.style.width = '0%';
-
-        dom.btnProcess.classList.remove('btn-secondary');
-        dom.btnProcess.classList.add('btn-primary');
-
-        buildOptionsPanel();
-
-        if (state.selectedFile) {
-            dom.btnProcess.disabled = false;
-            dom.btnText.textContent = toolConfig[state.activeTool].action;
-        } else {
-            clearFile();
-        }
     }
 
     function formatBytes(bytes) {
         if (bytes === 0 || bytes == null) return '0 B';
         const k = 1024;
         const sizes = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
 
@@ -724,9 +786,11 @@
         return (filename || '').split('.').pop().toLowerCase();
     }
 
+    /* ---------- Create: QR codes ---------- */
+
     function switchQrType() {
         const type = dom.qrType.value;
-        
+
         $('#qr-url-fields').classList.toggle('hidden', type !== 'url');
         $('#qr-text-fields').classList.toggle('hidden', type !== 'text');
         $('#qr-location-fields').classList.toggle('hidden', type !== 'location');
@@ -746,14 +810,15 @@
             case 'text':
                 data = dom.qrTextInput.value.trim();
                 break;
-            case 'location':
+            case 'location': {
                 const lat = dom.qrLatitudeInput.value.trim();
                 const lng = dom.qrLongitudeInput.value.trim();
                 if (lat && lng) {
                     data = `geo:${lat},${lng}`;
                 }
                 break;
-            case 'wifi':
+            }
+            case 'wifi': {
                 const ssid = dom.qrWifiSsid.value.trim();
                 const password = dom.qrWifiPassword.value.trim();
                 const hidden = dom.qrWifiHidden.checked ? 'true' : 'false';
@@ -762,37 +827,31 @@
                     data = `WIFI:T:WPA;S:${escapeWifiString(ssid)};P:${password ? escapeWifiString(password) : ''};H:${hidden};;`;
                 }
                 break;
+            }
         }
+
+        dom.qrResultCanvas.innerHTML = '';
 
         if (!data) {
             dom.qrOutputSection.classList.add('hidden');
-            dom.btnDownloadQr.classList.add('hidden');
-            dom.qrResultCanvas.innerHTML = '';
+            state.qrCodeData = null;
             return;
         }
 
-        // Clear previous QR code
-        dom.qrResultCanvas.innerHTML = '';
-
         try {
-            const qr = new QRCode(dom.qrResultCanvas, {
+            new QRCode(dom.qrResultCanvas, {
                 text: data,
-                width: 140,
-                height: 140,
-                colorDark: '#fafafa',
+                width: 180,
+                height: 180,
+                colorDark: '#ffffff',
                 colorLight: '#18181b',
                 correctLevel: QRCode.CorrectLevel.H
             });
-
             dom.qrOutputSection.classList.remove('hidden');
-            dom.btnDownloadQr.classList.remove('hidden');
-
-            // Store the data for download
             state.qrCodeData = data;
         } catch (e) {
             console.error('Failed to generate QR code:', e);
             dom.qrOutputSection.classList.add('hidden');
-            dom.btnDownloadQr.classList.add('hidden');
         }
     }
 
@@ -804,8 +863,7 @@
     function debounceLocationSearch() {
         clearTimeout(locationSearchTimer);
         const query = dom.qrLocationSearch.value.trim();
-        console.log('Location search input:', query);
-        
+
         if (!query) {
             dom.qrSearchResults.classList.add('hidden');
             return;
@@ -814,58 +872,48 @@
         locationSearchTimer = setTimeout(() => searchLocation(query), 300);
     }
 
+    function showSearchMessage(text) {
+        const item = document.createElement('div');
+        item.className = 'search-result-item';
+        item.textContent = text;
+        dom.qrSearchResults.replaceChildren(item);
+        dom.qrSearchResults.classList.remove('hidden');
+    }
+
     async function searchLocation(query) {
-        console.log('Searching for location:', query);
         try {
             const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=8`;
-            console.log('Fetch URL:', url);
-            
-            const response = await fetch(url, {
-                headers: { 
-                    'User-Agent': 'ILoveConversion-QRGenerator',
-                    'Accept': 'application/json'
-                }
-            });
-            
-            console.log('Response status:', response.status);
+            const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            
+
             const results = await response.json();
-            console.log('Search results count:', results.length, results);
-            
             if (results.length === 0) {
-                dom.qrSearchResults.innerHTML = '<div class="search-result-item">No places found</div>';
-                dom.qrSearchResults.classList.remove('hidden');
+                showSearchMessage('No places found');
                 return;
             }
 
-            dom.qrSearchResults.innerHTML = results.map((result, idx) => `
-                <div class="search-result-item" onclick="selectLocationResult(${idx}, ${result.lat}, ${result.lon})">
-                    ${result.display_name}
-                </div>
-            `).join('');
-            
+            dom.qrSearchResults.replaceChildren(...results.map((result) => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'search-result-item';
+                item.textContent = result.display_name;
+                item.addEventListener('click', () => selectLocationResult(result));
+                return item;
+            }));
             dom.qrSearchResults.classList.remove('hidden');
-            window.locationSearchResults = results;
-            console.log('Results displayed');
         } catch (e) {
             console.error('Location search error:', e);
-            dom.qrSearchResults.innerHTML = `<div class="search-result-item">Error: ${e.message}</div>`;
-            dom.qrSearchResults.classList.remove('hidden');
+            showSearchMessage(`Error: ${e.message}`);
         }
     }
 
-    function selectLocationResult(idx, lat, lon) {
-        dom.qrLatitudeInput.value = lat;
-        dom.qrLongitudeInput.value = lon;
-        dom.qrLocationSearch.value = window.locationSearchResults[idx].display_name;
+    function selectLocationResult(result) {
+        dom.qrLatitudeInput.value = result.lat;
+        dom.qrLongitudeInput.value = result.lon;
+        dom.qrLocationSearch.value = result.display_name;
         dom.qrSearchResults.classList.add('hidden');
         generateQrCode();
     }
-
-    // Make function globally accessible for onclick handlers
-    window.selectLocationResult = selectLocationResult;
-    window.locationSearchResults = [];
 
     function downloadQrCode() {
         const canvas = dom.qrResultCanvas.querySelector('canvas');

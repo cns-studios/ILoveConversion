@@ -12,243 +12,155 @@
     <meta name="theme-color" content="#09090b">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;1,500&display=swap" rel="stylesheet">
     <script src="/qrcode.min.js"></script>
 </head>
 <body>
     <div id="app">
 
-        <div class="trust-banner">
-            <svg class="trust-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            <span>Your data is secure. You can inspect the source code <a href="https://github.com/cns-studios/ILoveConversion" target="_blank" rel="noopener noreferrer">here</a> and check for yourself.</span>
-        </div>
-
-        <header class="header">
-            <div class="header-inner">
-                <h1 class="logo">
-                    <span class="logo-i">I</span>
-                    <svg class="logo-heart" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                    <span class="logo-text">Conversion</span>
-                </h1>
-                <p class="tagline">Convert, compress &amp; transform - <em>encrypted, no signup</em></p>
+        <header class="site-header">
+            <a href="/" class="brand" aria-label="ILoveConversion home">
+                <img class="brand-logo" src="/logo.png" alt="" width="46" height="46">
+                <span class="brand-name">ILC</span>
+            </a>
+            <div class="mode-toggle" role="group" aria-label="Processing mode">
+                <button type="button" class="mode-btn" data-mode="local">Local</button>
+                <button type="button" class="mode-btn active" data-mode="online" aria-pressed="true">Online</button>
             </div>
         </header>
 
-        <nav class="tool-tabs" role="tablist">
-            <button class="tab active" data-tool="image_convert" role="tab" aria-selected="true">
-                <span class="tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
-                <span class="tab-label">Image Convert</span>
-            </button>
-            <button class="tab" data-tool="image_compress" role="tab">
-                <span class="tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
-                <span class="tab-label">Image Compress</span>
-            </button>
-            <button class="tab" data-tool="image_remove_bg" role="tab">
-                <span class="tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg></span>
-                <span class="tab-label">Remove BG</span>
-            </button>
-            <button class="tab" data-tool="pdf_compress" role="tab">
-                <span class="tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
-                <span class="tab-label">PDF Compress</span>
-            </button>
-            <button class="tab" data-tool="audio_convert" role="tab">
-                <span class="tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
-                <span class="tab-label">Audio Convert</span>
-            </button>
-            <button class="tab" data-tool="audio_compress" role="tab">
-                <span class="tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></span>
-                <span class="tab-label">Audio Compress</span>
-            </button>
-            <button class="tab" data-tool="video_compress" role="tab">
-                <span class="tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></span>
-                <span class="tab-label">Video Compress</span>
-            </button>
-            <button class="tab" data-tool="qr_code" role="tab">
-                <span class="tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="2" height="2"/><rect x="8" y="14" width="2" height="2"/><rect x="3" y="19" width="2" height="2"/><rect x="8" y="19" width="2" height="2"/><rect x="13" y="19" width="2" height="2"/><rect x="18" y="19" width="2" height="2"/></svg></span>
-                <span class="tab-label">QR Code</span>
-            </button>
-        </nav>
-
         <main class="workspace">
 
-            <div id="dropzone" class="dropzone">
-                <div class="dropzone-content">
-                    <div class="dropzone-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                    </div>
-                    <p class="dropzone-text">Drag &amp; drop your file here</p>
-                    <p class="dropzone-subtext">or <label for="file-input" class="file-label">browse</label></p>
-                    <input type="file" id="file-input" class="file-input" />
-                    <p class="dropzone-formats" id="accepted-formats"></p>
+            <nav class="tool-tabs" role="tablist">
+                <button class="tab active" data-tool="convert" role="tab" aria-selected="true">
+                    <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 21 21" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19.25 10.25C19.25 7.86305 18.3018 5.57387 16.614 3.88604C14.9261 2.19821 12.6369 1.25 10.25 1.25C7.73395 1.25947 5.31897 2.24122 3.51 3.99L1.25 6.25M6.25 6.25H1.25V1.25M1.25 10.25C1.25 12.6369 2.19821 14.9261 3.88604 16.614C5.57387 18.3018 7.86305 19.25 10.25 19.25C12.766 19.2405 15.181 18.2588 16.99 16.51L19.25 14.25M19.25 19.25V14.25H14.25"/></svg>
+                    <span>Convert</span>
+                </button>
+                <button class="tab" data-tool="compress" role="tab" aria-selected="false">
+                    <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 10L21 3M14 4V10H20M3 21L10 14M10 20V14H4"/></svg>
+                    <span>Compress</span>
+                </button>
+                <button class="tab" data-tool="create" role="tab" aria-selected="false">
+                    <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12H19M12 5V19"/></svg>
+                    <span>Create</span>
+                </button>
+            </nav>
+
+            <section id="panel-convert" class="tool-panel" data-panel="convert" role="tabpanel"></section>
+            <section id="panel-compress" class="tool-panel hidden" data-panel="compress" role="tabpanel"></section>
+
+            <section id="panel-create" class="tool-panel hidden" data-panel="create" role="tabpanel">
+                <div class="option-row">
+                    <label class="option-label" for="qr-type">Create</label>
+                    <select class="option-select" id="qr-type">
+                        <option value="url">QR Code · URL</option>
+                        <option value="text">QR Code · Text</option>
+                        <option value="location">QR Code · Location</option>
+                        <option value="wifi">QR Code · WiFi</option>
+                    </select>
                 </div>
-            </div>
 
-            <div id="qr-input-section" class="qr-input-section hidden">
-                <div class="qr-input-container">
-                    <div class="option-group">
-                        <label class="option-label" for="qr-type">Type</label>
-                        <select class="option-select" id="qr-type">
-                            <option value="url">URL</option>
-                            <option value="text">Text</option>
-                            <option value="location">Location</option>
-                            <option value="wifi">WiFi</option>
-                        </select>
-                    </div>
-
+                <div class="card qr-fields-card">
                     <div id="qr-url-fields" class="qr-fields">
-                        <div class="option-group">
-                            <label class="option-label" for="qr-url-input">URL</label>
-                            <input type="text" id="qr-url-input" class="qr-input" placeholder="https://example.com" />
+                        <div class="field">
+                            <label class="field-label" for="qr-url-input">URL</label>
+                            <input type="text" id="qr-url-input" class="text-input" placeholder="https://example.com" />
                         </div>
                     </div>
 
                     <div id="qr-text-fields" class="qr-fields hidden">
-                        <div class="option-group">
-                            <label class="option-label" for="qr-text-input">Text</label>
-                            <textarea id="qr-text-input" class="qr-input qr-textarea" placeholder="Enter text to encode" rows="4"></textarea>
+                        <div class="field">
+                            <label class="field-label" for="qr-text-input">Text</label>
+                            <textarea id="qr-text-input" class="text-input text-area" placeholder="Enter text to encode" rows="4"></textarea>
                         </div>
                     </div>
 
                     <div id="qr-location-fields" class="qr-fields hidden">
-                        <div class="option-group">
-                            <label class="option-label" for="qr-location-search">Search Location</label>
-                            <input type="text" id="qr-location-search" class="qr-input" placeholder="e.g., New York, Times Square" />
-                            <div id="qr-search-results" class="qr-search-results hidden"></div>
+                        <div class="field">
+                            <label class="field-label" for="qr-location-search">Search location</label>
+                            <input type="text" id="qr-location-search" class="text-input" placeholder="e.g., New York, Times Square" />
+                            <div id="qr-search-results" class="search-results hidden"></div>
                         </div>
-                        <div class="option-group">
-                            <label class="option-label" for="qr-latitude-input">Latitude</label>
-                            <input type="number" id="qr-latitude-input" class="qr-input" placeholder="0.0" step="0.0001" />
-                        </div>
-                        <div class="option-group">
-                            <label class="option-label" for="qr-longitude-input">Longitude</label>
-                            <input type="number" id="qr-longitude-input" class="qr-input" placeholder="0.0" step="0.0001" />
+                        <div class="field-row">
+                            <div class="field">
+                                <label class="field-label" for="qr-latitude-input">Latitude</label>
+                                <input type="number" id="qr-latitude-input" class="text-input" placeholder="0.0" step="0.0001" />
+                            </div>
+                            <div class="field">
+                                <label class="field-label" for="qr-longitude-input">Longitude</label>
+                                <input type="number" id="qr-longitude-input" class="text-input" placeholder="0.0" step="0.0001" />
+                            </div>
                         </div>
                     </div>
 
                     <div id="qr-wifi-fields" class="qr-fields hidden">
-                        <div class="option-group">
-                            <label class="option-label" for="qr-wifi-ssid">Network Name (SSID)</label>
-                            <input type="text" id="qr-wifi-ssid" class="qr-input" placeholder="WiFi network name" />
+                        <div class="field">
+                            <label class="field-label" for="qr-wifi-ssid">Network name (SSID)</label>
+                            <input type="text" id="qr-wifi-ssid" class="text-input" placeholder="WiFi network name" />
                         </div>
-                        <div class="option-group">
-                            <label class="option-label" for="qr-wifi-password">Password</label>
-                            <input type="password" id="qr-wifi-password" class="qr-input" placeholder="WiFi password" />
+                        <div class="field">
+                            <label class="field-label" for="qr-wifi-password">Password</label>
+                            <input type="password" id="qr-wifi-password" class="text-input" placeholder="WiFi password" />
                         </div>
-                        <div class="option-group">
-                            <div class="option-checkbox-row">
-                                <input type="checkbox" class="option-checkbox" id="qr-wifi-hidden">
-                                <label class="option-checkbox-label" for="qr-wifi-hidden">Hidden network</label>
-                            </div>
-                        </div>
+                        <label class="switch-row" for="qr-wifi-hidden">
+                            <span class="switch-label">Hidden network</span>
+                            <input type="checkbox" class="switch" id="qr-wifi-hidden">
+                        </label>
                     </div>
                 </div>
-            </div>
 
-            <div id="file-info" class="file-info hidden">
-                <div class="file-info-row">
-                    <div class="file-info-left">
-                        <svg class="file-info-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-                        <span id="file-name" class="file-name"></span>
-                    </div>
-                    <div class="file-info-right">
-                        <span id="file-size" class="file-size"></span>
-                        <button id="file-clear" class="btn-icon" title="Remove file">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div id="qr-output-section" class="qr-output-section hidden">
-                <div class="qr-output-container">
+                <div id="qr-output-section" class="card qr-output hidden">
                     <div id="qr-result-canvas"></div>
-                </div>
-            </div>
-
-            <div id="options-panel" class="options-panel hidden">
-            </div>
-
-            <div class="action-row">
-                <button id="btn-process" class="btn-primary" disabled>
-                    <span id="btn-text">Select a file to start</span>
-                </button>
-                <button id="btn-download-qr" class="btn-primary hidden">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Download QR Code
-                </button>
-            </div>
-
-            <div id="progress-section" class="progress-section hidden">
-                <div class="progress-status">
-                    <span id="progress-label">Uploading...</span>
-                    <span id="progress-pct">0%</span>
-                </div>
-                <div class="progress-bar-track">
-                    <div id="progress-bar" class="progress-bar-fill" style="width: 0%"></div>
-                </div>
-                <p id="progress-detail" class="progress-detail"></p>
-            </div>
-
-            <div id="result-section" class="result-section hidden">
-                <div class="result-card result-success" id="result-success">
-                    <div class="result-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                    </div>
-                    <p class="result-text">Processing complete!</p>
-                    <div class="result-stats">
-                        <span id="result-input-size"></span>
-                        <span class="result-arrow">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                        </span>
-                        <span id="result-output-size"></span>
-                        <span id="result-savings" class="result-savings"></span>
-                    </div>
-                    <a id="result-download" class="btn-primary btn-download" href="#" download>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <button id="btn-download-qr" type="button" class="btn-chip">
                         Download
-                    </a>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.25V2.25M12.75 7.5L9 11.25L5.25 7.5M15.75 11.25V14.25C15.75 14.6478 15.592 15.0294 15.3107 15.3107C15.0294 15.592 14.6478 15.75 14.25 15.75H3.75C3.35218 15.75 2.97064 15.592 2.68934 15.3107C2.40804 15.0294 2.25 14.6478 2.25 14.25V11.25"/></svg>
+                    </button>
                 </div>
-                <div class="result-card result-error hidden" id="result-error">
-                    <div class="result-icon result-icon-error">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                    </div>
-                    <p class="result-text">Processing failed</p>
-                    <p id="error-message" class="error-message"></p>
-                    <button id="btn-retry" class="btn-secondary">Try Again</button>
-                </div>
-            </div>
+            </section>
 
         </main>
 
-        <footer class="footer">
-            <a href="/privacy.html">Privacy Policy</a>
-            <span class="footer-sep"></span>
+        <footer class="site-footer">
             <a href="/terms.html">Terms of Service</a>
+            <a href="/privacy.html">Privacy Policy</a>
+            <a href="/privacy.html#data-processing">Data Processing</a>
         </footer>
 
     </div>
+
+    <template id="tpl-file-tool">
+        <div class="dropzone" data-ref="dropzone">
+            <p class="dropzone-title">Drop files here</p>
+            <button type="button" class="btn-accent" data-ref="browse">Browse files</button>
+            <p class="dropzone-formats" data-ref="formats"></p>
+        </div>
+        <input type="file" class="file-input" data-ref="input" multiple>
+        <div class="options hidden" data-ref="options"></div>
+        <div class="file-list hidden" data-ref="list"></div>
+        <button type="button" class="btn-accent btn-action hidden" data-ref="action"></button>
+    </template>
 
     <div id="alert-modal" class="modal-overlay hidden">
         <div class="modal-content modal-content-small">
             <h2 id="alert-title" class="modal-title">Info</h2>
             <p id="alert-text" class="modal-text"></p>
             <div class="modal-actions">
-                <button id="btn-alert-close" class="btn-primary">OK</button>
+                <button id="btn-alert-close" class="btn-accent">OK</button>
             </div>
         </div>
     </div>
 
     <div id="consent-modal" class="modal-overlay hidden">
         <div class="modal-content">
-            <h2 class="modal-title">Terms & Privacy</h2>
+            <h2 class="modal-title">Terms &amp; Privacy</h2>
             <p class="modal-text">
-                Welcome to ILoveConversion. Before using our service, please review and accept our 
-                <a href="/terms.html" target="_blank">Terms of Service</a> and 
+                Welcome to ILoveConversion. Before using our service, please review and accept our
+                <a href="/terms.html" target="_blank">Terms of Service</a> and
                 <a href="/privacy.html" target="_blank">Privacy Policy</a>.
             </p>
             <div class="modal-actions">
-                <button id="btn-decline" class="btn-secondary">Decline</button>
-                <button id="btn-accept" class="btn-primary">Accept & Continue</button>
+                <button id="btn-decline" class="btn-muted">Decline</button>
+                <button id="btn-accept" class="btn-accent">Accept &amp; Continue</button>
             </div>
         </div>
     </div>
