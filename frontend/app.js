@@ -8,6 +8,7 @@
         activeTab: 'convert',
         mode: 'local',
         formats: null,
+        maxFileSize: 500 * 1024 * 1024,
         tools: {},
         qrType: null,
         qrCodeData: null,
@@ -178,6 +179,8 @@
             const res = await fetch('/api/formats');
             if (res.ok) {
                 state.formats = await res.json();
+                const max = parseInt(res.headers.get('X-Max-File-Size'), 10);
+                if (max > 0) state.maxFileSize = max;
             }
         } catch (e) {
         }
@@ -1352,6 +1355,12 @@
     }
 
     function upload(tool, item) {
+        if (item.file.size > state.maxFileSize) {
+            setError(item, `This file is larger than the ${formatBytes(state.maxFileSize)} limit for online processing.`);
+            renderFile(item);
+            pump(tool);
+            return;
+        }
         tool.uploading = true;
         item.status = 'uploading';
         item.progress = 0;
@@ -1392,7 +1401,9 @@
                     setError(item, 'Invalid response from server.');
                 }
             } else {
-                let message = `Upload failed (HTTP ${xhr.status})`;
+                let message = xhr.status === 413
+                    ? `This file is larger than the ${formatBytes(state.maxFileSize)} limit for online processing.`
+                    : `Upload failed (HTTP ${xhr.status})`;
                 try {
                     const err = JSON.parse(xhr.responseText);
                     if (err.error) message = err.error;
