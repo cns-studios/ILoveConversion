@@ -8,9 +8,11 @@ RUN apt-get update && \
 
 WORKDIR /build
 
-COPY . .
+COPY go.mod go.sum ./
+RUN go mod download
 
-RUN go mod tidy
+COPY internal ./internal
+COPY cmd/worker ./cmd/worker
 
 RUN mkdir -p /out && \
     CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \

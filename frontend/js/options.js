@@ -6,7 +6,7 @@ import { QUALITY_PRESETS, qualityInfo } from './quality.js';
 import { loadNumber, loadSetting, saveSetting } from './settings.js';
 import { state } from './state.js';
 
-export function buildOptions(tool, pending) {
+export function buildOptions(tool, pending, more) {
     const opts = tool.refs.options;
     opts.innerHTML = '';
     tool.controls = {};
@@ -16,7 +16,7 @@ export function buildOptions(tool, pending) {
         (byCategory[f.category] = byCategory[f.category] || []).push(f.ext);
     });
     const categories = CATEGORIES.filter((c) => byCategory[c]);
-    const multi = categories.length > 1;
+    const multi = more;
 
     categories.forEach((category) => {
         const exts = [...new Set(byCategory[category])];

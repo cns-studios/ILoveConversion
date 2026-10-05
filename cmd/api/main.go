@@ -121,8 +121,13 @@ func (a *app) buildRouter() chi.Router {
 
 		r.With(a.sessionMiddleware(true)).Post("/jobs", a.handleCreateJob)
 
+		r.With(a.sessionMiddleware(true)).Post("/uploads", a.handleInitUpload)
+
 		r.Group(func(r chi.Router) {
 			r.Use(a.sessionMiddleware(false))
+
+			r.Put("/uploads/{id}/chunks/{index}", a.handleUploadChunk)
+			r.Post("/uploads/{id}/complete", a.handleCompleteUpload)
 
 			r.Get("/jobs/{id}", a.handleGetJob)
 			r.Get("/jobs/{id}/download", a.handleDownload)

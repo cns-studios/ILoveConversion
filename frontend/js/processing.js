@@ -3,6 +3,7 @@ import { POLL_INTERVAL } from './constants.js';
 import { formatBytes } from './helpers.js';
 import { renderFile, setError } from './render.js';
 import { state } from './state.js';
+import { uploadFile } from './upload.js';
 
 export function pump(tool) {
     if (!tool.uploading) {
@@ -43,7 +44,7 @@ async function runLocal(tool, item) {
     }
 }
 
-function upload(tool, item) {
+async function upload(tool, item) {
     if (item.file.size > state.maxFileSize) {
         setError(item, `This file is larger than the ${formatBytes(state.maxFileSize)} limit for online processing.`);
         renderFile(item);
@@ -55,67 +56,24 @@ function upload(tool, item) {
     item.progress = 0;
     renderFile(item);
 
-    const formData = new FormData();
-    formData.append('file', item.file);
-    formData.append('operation', item.operation);
-    Object.keys(item.params).forEach((key) => {
-        formData.append(key, item.params[key]);
-    });
-
-    const xhr = new XMLHttpRequest();
-    item.xhr = xhr;
-
-    const finishUpload = () => {
-        item.xhr = null;
-        tool.uploading = false;
-        renderFile(item);
-        pump(tool);
-    };
-
-    xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-            item.progress = Math.round((e.loaded / e.total) * 100);
+    try {
+        const job = await uploadFile(item, (percent) => {
+            item.progress = percent;
             renderFile(item);
-        }
-    });
-
-    xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-                const data = JSON.parse(xhr.responseText);
-                item.jobId = data.id;
-                item.status = 'queued';
-                startPolling(item);
-            } catch (e) {
-                setError(item, 'Invalid response from server.');
-            }
-        } else {
-            let message = xhr.status === 413
-                ? `This file is larger than the ${formatBytes(state.maxFileSize)} limit for online processing.`
-                : `Upload failed (HTTP ${xhr.status})`;
-            try {
-                const err = JSON.parse(xhr.responseText);
-                if (err.error) message = err.error;
-            } catch (e) {
-            }
-            setError(item, message);
-        }
-        finishUpload();
-    });
-
-    xhr.addEventListener('error', () => {
-        setError(item, 'Network error. Please check your connection and try again.');
-        finishUpload();
-    });
-
-    xhr.addEventListener('abort', () => {
+        });
         if (item.removed) return;
-        setError(item, 'Upload was cancelled.');
-        finishUpload();
-    });
-
-    xhr.open('POST', '/api/jobs');
-    xhr.send(formData);
+        item.jobId = job.id;
+        item.status = 'queued';
+        startPolling(item);
+    } catch (err) {
+        if (item.removed) return;
+        setError(item, err.status === 413
+            ? `This file is larger than the ${formatBytes(state.maxFileSize)} limit for online processing.`
+            : err.message);
+    }
+    tool.uploading = false;
+    renderFile(item);
+    pump(tool);
 }
 
 function startPolling(item) {
