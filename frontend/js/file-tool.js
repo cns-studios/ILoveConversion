@@ -1,5 +1,5 @@
 import { cancelCloud, confirmCloud, startPending, updateCloudPrompt } from './cloud.js';
-import { CATEGORY_SOURCE, CATEGORY_TITLES, COMPRESS_OPS, CONVERT_OPS, MIME_MAP } from './constants.js';
+import { CATEGORIES, CATEGORY_SOURCE, CATEGORY_TITLES, COMPRESS_OPS, CONVERT_OPS, MIME_MAP } from './constants.js';
 import { $, $$ } from './dom.js';
 import { categoryOf, formatsFor, getExtension, listOf } from './formats.js';
 import { showAlert } from './helpers.js';
@@ -106,16 +106,19 @@ function addFiles(tool, fileList) {
 }
 
 export function pendingFiles(tool) {
-    return tool.files.filter((f) => f.status === 'ready');
+    const ready = tool.files.filter((f) => f.status === 'ready');
+    const first = CATEGORIES.find((c) => ready.some((f) => f.category === c));
+    return ready.filter((f) => f.category === first);
 }
 
 export function refresh(tool) {
     const pending = pendingFiles(tool);
-    const signature = pending.map((f) => f.category + ':' + f.ext).sort().join('|');
+    const more = tool.files.some((f) => f.status === 'ready' && !pending.includes(f));
+    const signature = more + '|' + pending.map((f) => f.category + ':' + f.ext).sort().join('|');
 
     if (signature !== tool.setupSignature) {
         tool.setupSignature = signature;
-        if (pending.length) buildOptions(tool, pending);
+        if (pending.length) buildOptions(tool, pending, more);
     }
     tool.refs.setup.classList.toggle('open', pending.length > 0);
     if (!pending.length) tool.refs.setup.classList.remove('settled');
