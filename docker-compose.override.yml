@@ -1,4 +1,0 @@
-services:
-  nginx:
-    ports:
-      - "${NGINX_PORT:-8080}:80"
