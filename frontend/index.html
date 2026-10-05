@@ -24,8 +24,9 @@
                 <span class="brand-name">ILC</span>
             </a>
             <div class="mode-toggle" role="group" aria-label="Processing mode">
-                <button type="button" class="mode-btn" data-mode="local">Local</button>
-                <button type="button" class="mode-btn active" data-mode="online" aria-pressed="true">Online</button>
+                <span class="mode-indicator" aria-hidden="true"></span>
+                <button type="button" class="mode-btn active" data-mode="local" aria-pressed="true" title="Process files on this device">Local</button>
+                <button type="button" class="mode-btn" data-mode="online" aria-pressed="false" title="Process files on the ILC server">Online</button>
             </div>
         </header>
 
@@ -125,9 +126,20 @@
 
     <template id="tpl-file-tool">
         <div class="dropzone" data-ref="dropzone">
-            <p class="dropzone-title">Drop files here</p>
-            <button type="button" class="btn-accent" data-ref="browse">Browse files</button>
-            <p class="dropzone-formats" data-ref="formats"></p>
+            <div class="dropzone-default" data-ref="dropDefault">
+                <p class="dropzone-title">Drop files here</p>
+                <button type="button" class="btn-accent" data-ref="browse">Browse files</button>
+                <p class="dropzone-formats" data-ref="formats"></p>
+                <p class="dropzone-mode" data-ref="modeNote"></p>
+            </div>
+            <div class="dropzone-cloud" data-ref="cloud" hidden>
+                <p class="cloud-title" data-ref="cloudTitle"></p>
+                <ul class="cloud-reasons" data-ref="cloudReasons"></ul>
+                <div class="cloud-actions">
+                    <button type="button" class="btn-outline" data-ref="cloudCancel">Cancel</button>
+                    <button type="button" class="btn-accent" data-ref="cloudConfirm">Confirm</button>
+                </div>
+            </div>
         </div>
         <input type="file" class="file-input" data-ref="input" multiple>
         <div class="setup" data-ref="setup">
@@ -170,6 +182,8 @@
         </div>
     </div>
 
+    <script src="/local-codecs.js"></script>
+    <script src="/local.js"></script>
     <script src="/app.js"></script>
 </body>
 </html>
