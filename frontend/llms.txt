@@ -1,0 +1,37 @@
+# ILC (ILoveConversion)
+
+> ILC is a free, open-source web app for converting, compressing and creating files. In local mode (the default) images and audio are processed directly in the browser and never uploaded. Online mode handles everything else on CNS Studios' server with AES-256-GCM encrypted uploads that are deleted after 24 hours. No signup, no tracking, no ads.
+
+Website: https://ilc.cns-studios.com
+Source code: https://github.com/cns-studios/ILoveConversion
+Made by: CNS Studios (contact@cns-studios.com)
+
+## What you can do
+
+- **Convert images** between JPEG, PNG, WEBP, TIFF, BMP and PDF on the device; GIF, AVIF and HEIF output online. Inputs include JPEG, PNG, WEBP, GIF, BMP, AVIF, TIFF, HEIC/HEIF.
+- **Remove image backgrounds** with an AI model (online, outputs transparent PNG or WEBP).
+- **Compress images**: JPEG, PNG (palette quantization) and WEBP on the device; other formats online, with optional lossless mode.
+- **Convert audio** to WAV or AIFF on the device; MP3, FLAC, OGG, OPUS, AAC and M4A online.
+- **Compress audio** (bitrate control, e.g. MP3 32-320 kbps), **video** (MP4/MKV with H.264, WEBM with VP9) and **PDF** files (Ghostscript presets and image DPI), online.
+- **Create QR codes** for URLs, text, geographic locations and WiFi networks, entirely in the browser.
+- Process many files at once; each file gets its own download.
+
+## Privacy
+
+- Local mode: files stay in the browser. Processing uses the Canvas, Web Worker and Web Audio APIs; no file data is sent over the network.
+- If a file can't be handled locally (unsupported format, larger than 50 MB / 50 megapixels for images or 25 MB for audio), ILC asks before uploading it.
+- Online mode: uploads are encrypted at rest, processed in RAM, and deleted automatically after 24 hours.
+
+## Common tasks
+
+- HEIC to JPG, PNG to JPG, JPG to PNG, WEBP to PNG, JPG to PDF
+- Compress a PNG screenshot or JPEG photo without uploading it
+- MP3 to WAV, WAV to MP3, FLAC to MP3
+- Shrink an MP4 or MOV video, compress a PDF for email
+- Make a QR code for a WiFi network
+
+## Pages
+
+- [App](https://ilc.cns-studios.com/): convert, compress and create tools
+- [Privacy Policy](https://ilc.cns-studios.com/privacy.html): data handling, GDPR information
+- [Terms of Service](https://ilc.cns-studios.com/terms.html)

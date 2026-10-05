@@ -1,0 +1,14 @@
+{
+    "name": "ILC · ILoveConversion",
+    "short_name": "ILC",
+    "description": "Convert, compress and create files privately in your browser.",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#09090b",
+    "theme_color": "#09090b",
+    "icons": [
+        { "src": "/favicon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+        { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+    ]
+}
