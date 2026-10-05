@@ -15,7 +15,6 @@
     const POLL_INTERVAL = 2000;
     // Video "conversion" runs through the video_compress operation, so keep quality high.
     const VIDEO_CONVERT_QUALITY = 85;
-    const DEFAULT_COMPRESS_QUALITY = 75;
 
     const ICON_DOWNLOAD = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.25V2.25M12.75 7.5L9 11.25L5.25 7.5M15.75 11.25V14.25C15.75 14.6478 15.592 15.0294 15.3107 15.3107C15.0294 15.592 14.6478 15.75 14.25 15.75H3.75C3.35218 15.75 2.97064 15.592 2.68934 15.3107C2.40804 15.0294 2.25 14.6478 2.25 14.25V11.25"/></svg>';
     const ICON_X = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 4.5L4.5 13.5M4.5 4.5L13.5 13.5"/></svg>';
@@ -24,7 +23,9 @@
 
     const FORMAT_ALIASES = { jpg: 'jpeg', tif: 'tiff' };
 
+    const CATEGORIES = ['image', 'audio', 'video', 'pdf'];
     const CATEGORY_LABELS = { image: 'images', audio: 'audio files', video: 'videos', pdf: 'PDFs' };
+    const CATEGORY_TITLES = { image: 'Images', audio: 'Audio', video: 'Video', pdf: 'PDF' };
 
     // Formats used to detect a file's category from its extension.
     const CATEGORY_SOURCE = {
@@ -34,11 +35,18 @@
         pdf: 'pdf_compress',
     };
 
-    const COMPRESS_OPS = {
-        image: 'image_compress',
-        audio: 'audio_compress',
-        video: 'video_compress',
-        pdf: 'pdf_compress',
+    const CONVERT_OPS = { image: 'image_convert', audio: 'audio_convert', video: 'video_compress' };
+    const COMPRESS_OPS = { image: 'image_compress', audio: 'audio_compress', video: 'video_compress', pdf: 'pdf_compress' };
+
+    const DEFAULTS = {
+        target: { image: 'image_convert:jpeg', audio: 'audio_convert:mp3', video: 'video_compress:mp4' },
+        quality: { image: 80, audio: 70, video: 65, pdf: 75 },
+    };
+
+    // Formats where the backend's lossless flag actually changes the encoding.
+    const LOSSLESS_FORMATS = {
+        image: ['png', 'webp', 'avif', 'tiff', 'tif'],
+        audio: ['flac', 'wav', 'aiff'],
     };
 
     const MIME_MAP = {
@@ -194,7 +202,7 @@
 
     /* ---------- Picker (custom dropdown) ---------- */
 
-    // groups: [{ label?, items: [{ value, label, display? }] }]. Grid groups render as format chips.
+    // groups: [{ label?, items: [{ value, label, display?, note? }] }]. Grid groups render as format chips.
     function createPicker({ groups, value, grid = false, labelledBy, onChange }) {
         const root = document.createElement('div');
         root.className = 'picker';
@@ -230,8 +238,9 @@
                 option.className = 'picker-option';
                 option.setAttribute('role', 'option');
                 option.tabIndex = -1;
-                option.innerHTML = `<span class="picker-option-label"></span>${ICON_CHECK}`;
+                option.innerHTML = `<span class="picker-option-text"><span class="picker-option-label"></span><span class="picker-option-note"></span></span>${ICON_CHECK}`;
                 option.querySelector('.picker-option-label').textContent = item.label;
+                option.querySelector('.picker-option-note').textContent = item.note || '';
                 option.addEventListener('click', () => {
                     select(item.value, true);
                     close(true);
@@ -314,6 +323,7 @@
         return {
             el: root,
             get value() { return current.value; },
+            get text() { return current.display || current.label; },
         };
     }
 
@@ -335,6 +345,112 @@
         }
     }
 
+    function loadNumber(key, fallback) {
+        const v = parseInt(loadSetting(key, fallback), 10);
+        return Number.isFinite(v) ? v : fallback;
+    }
+
+    /* ---------- Quality descriptions ---------- */
+
+    // Same integer mapping the Go backend uses (internal/processor/audio.go).
+    function mapRange(value, inMin, inMax, outMin, outMax) {
+        if (value <= inMin) return outMin;
+        if (value >= inMax) return outMax;
+        return outMin + Math.trunc((value - inMin) * (outMax - outMin) / (inMax - inMin));
+    }
+
+    const QUALITY_TIERS = [
+        { max: 30, name: 'Smallest' },
+        { max: 55, name: 'Small' },
+        { max: 75, name: 'Balanced' },
+        { max: 90, name: 'High' },
+        { max: 100, name: 'Maximum' },
+    ];
+
+    const TIER_DESCRIPTIONS = {
+        image: [
+            'Tiny files with visible artifacts. Fine for thumbnails and previews.',
+            'Slight softness. Good for chat apps and email.',
+            'Good-looking and compact. The sweet spot for websites.',
+            'Hard to tell apart from the original.',
+            'Visually identical to the original, with the least savings.',
+        ],
+        audio: [
+            'Voice and podcasts only. Music will sound muffled.',
+            'Fine for speech and casual listening.',
+            'Good for music on phones and headphones.',
+            'Near CD quality.',
+            'Transparent quality, with the least savings.',
+        ],
+        video: [
+            'Very small, blocky in motion. Only for previews.',
+            'Watchable on small screens.',
+            'Good for sharing and the web.',
+            'Sharp detail, larger files.',
+            'Close to the original. Slow to encode.',
+        ],
+    };
+
+    const PDF_PRESETS = [
+        { max: 30, name: 'Screen', desc: 'Low-resolution images for on-screen reading. Smallest files.' },
+        { max: 60, name: 'Ebook', desc: 'Readable images, good for email and e-readers.' },
+        { max: 85, name: 'Printer', desc: 'High-quality images suitable for printing.' },
+        { max: 100, name: 'Prepress', desc: 'Best quality with minimal image compression.' },
+    ];
+
+    const QUALITY_PRESETS = {
+        default: [['Small', 40], ['Balanced', 70], ['High', 85], ['Max', 95]],
+        pdf: [['Screen', 25], ['Ebook', 50], ['Printer', 75], ['Prepress', 95]],
+    };
+
+    function formatDetail(category, format, q) {
+        const name = (FORMAT_ALIASES[format] || format).toUpperCase();
+        switch (category) {
+            case 'image':
+                if (format === 'png') return `PNG palette quality ${Math.max(q - 20, 0)}–${q}`;
+                if (format === 'gif' || format === 'bmp') return `${name} re-encoded (quality has little effect)`;
+                return `${name} quality ${q}`;
+            case 'audio':
+                switch (format) {
+                    case 'mp3': return `MP3 ≈ ${mapRange(q, 1, 100, 32, 320)} kbps`;
+                    case 'ogg': return `OGG Vorbis level ${mapRange(q, 1, 100, 0, 10)}`;
+                    case 'opus': return `OPUS ≈ ${mapRange(q, 1, 100, 16, 256)} kbps`;
+                    case 'aac':
+                    case 'm4a': return `${name} ≈ ${mapRange(q, 1, 100, 32, 256)} kbps`;
+                    case 'wma': return `WMA ≈ ${mapRange(q, 1, 100, 32, 192)} kbps`;
+                    case 'flac': return `FLAC is lossless; compression level ${mapRange(q, 1, 100, 12, 0)}`;
+                    default: return `${name} is uncompressed; quality has no effect`;
+                }
+            case 'video':
+                return format === 'webm'
+                    ? `WEBM (VP9) CRF ${mapRange(q, 1, 100, 50, 15)}`
+                    : `${name} (H.264) CRF ${mapRange(q, 1, 100, 45, 17)}`;
+            default:
+                return '';
+        }
+    }
+
+    function qualityInfo(category, formats, q, lossless) {
+        if (category === 'pdf') {
+            const preset = PDF_PRESETS.find((p) => q <= p.max);
+            return { tier: preset.name, desc: preset.desc, detail: `Ghostscript “${preset.name.toLowerCase()}” preset, image quality ${q}` };
+        }
+        const idx = QUALITY_TIERS.findIndex((t) => q <= t.max);
+        if (lossless) {
+            return {
+                tier: 'Lossless',
+                desc: 'No quality loss. Savings come only from smarter compression.',
+                detail: '',
+            };
+        }
+        const details = [...new Set(formats.map((f) => formatDetail(category, f, q)))].filter(Boolean);
+        return {
+            tier: QUALITY_TIERS[idx].name,
+            desc: TIER_DESCRIPTIONS[category][idx],
+            detail: details.slice(0, 3).join(' · '),
+        };
+    }
+
     /* ---------- File tools (Convert / Compress) ---------- */
 
     function createFileTool(mode, panel) {
@@ -349,13 +465,24 @@
             files: [],
             uploading: false,
             nextId: 1,
+            controls: {},
         };
 
-        if (mode === 'convert') {
-            buildConvertOptions(tool);
-        } else {
-            buildCompressOptions(tool);
-        }
+        const ops = mode === 'convert' ? CONVERT_OPS : COMPRESS_OPS;
+        tool.categories = Object.keys(ops);
+        const exts = [];
+        tool.categories.forEach((cat) => {
+            listOf(formatsFor(CATEGORY_SOURCE[cat]).input).forEach((ext) => {
+                if (!exts.includes(ext)) exts.push(ext);
+            });
+        });
+        tool.inputExts = exts;
+        refs.formats.textContent = mode === 'convert'
+            ? 'Images, audio and video'
+            : 'Images, audio, video and PDFs';
+        refs.formats.title = exts.map((f) => '.' + f).join(', ');
+        refs.input.setAttribute('accept', exts.map((f) => MIME_MAP[f] || '.' + f)
+            .concat(exts.map((f) => '.' + f)).join(','));
 
         refs.dropzone.addEventListener('click', () => refs.input.click());
         refs.dropzone.addEventListener('dragover', (e) => {
@@ -376,158 +503,365 @@
             addFiles(tool, refs.input.files);
             refs.input.value = '';
         });
+        // Let pickers overflow the panel once it has finished expanding.
+        refs.setup.addEventListener('transitionend', (e) => {
+            if (e.target === refs.setup && refs.setup.classList.contains('open')) {
+                refs.setup.classList.add('settled');
+            }
+        });
+        refs.action.addEventListener('click', () => startPending(tool));
+        refs.clear.addEventListener('click', () => clearAll(tool));
 
         return tool;
     }
 
-    function setAccepted(tool, exts, description) {
-        tool.inputExts = exts;
-        tool.refs.formats.textContent = description;
-        tool.refs.formats.title = exts.map((f) => '.' + f).join(', ');
-        tool.refs.input.setAttribute('accept', exts.map((f) => MIME_MAP[f] || '.' + f)
-            .concat(exts.map((f) => '.' + f)).join(','));
-    }
-
-    function buildConvertOptions(tool) {
-        const groups = [
-            { label: 'Image', op: 'image_convert' },
-            { label: 'Remove background', op: 'image_remove_bg', suffix: ' · transparent' },
-            { label: 'Audio', op: 'audio_convert' },
-            { label: 'Video', op: 'video_compress' },
-        ].map((g) => ({
-            label: g.label,
-            items: listOf(formatsFor(g.op).output).map((f) => ({
-                value: `${g.op}:${f}`,
-                label: f.toUpperCase(),
-                display: f.toUpperCase() + (g.suffix || ''),
-            })),
-        })).filter((g) => g.items.length);
-
-        const row = document.createElement('div');
-        row.className = 'option-row';
-        row.innerHTML = '<span class="option-label" id="convert-to-label">Convert to</span>';
-
-        const picker = createPicker({
-            groups,
-            grid: true,
-            value: loadSetting('convertTarget', 'image_convert:jpeg'),
-            labelledBy: 'convert-to-label',
-            onChange: (value) => {
-                saveSetting('convertTarget', value);
-                updateConvertAccepted(tool);
-            },
-        });
-        row.appendChild(picker.el);
-        tool.refs.options.appendChild(row);
-        tool.picker = picker;
-        updateConvertAccepted(tool);
-    }
-
-    function convertTarget(tool) {
-        const [operation, format] = tool.picker.value.split(':');
-        return { operation, format };
-    }
-
-    function updateConvertAccepted(tool) {
-        const { operation } = convertTarget(tool);
-        const exts = listOf(formatsFor(operation).input);
-        const names = [...new Set(exts.map((f) => (FORMAT_ALIASES[f] || f).toUpperCase()))];
-        setAccepted(tool, exts, 'Accepts ' + names.join(', '));
-    }
-
-    function buildCompressOptions(tool) {
-        const initial = parseInt(loadSetting('compressQuality', DEFAULT_COMPRESS_QUALITY), 10) || DEFAULT_COMPRESS_QUALITY;
-        const row = document.createElement('div');
-        row.className = 'option-row';
-        row.innerHTML = `
-            <label class="option-label" for="compress-quality">Quality</label>
-            <div class="option-range-wrap">
-                <span class="option-range-hint">Smaller</span>
-                <input type="range" class="option-range" id="compress-quality" min="1" max="100" value="${initial}">
-                <span class="option-range-hint">Better</span>
-                <span class="option-range-value"></span>
-            </div>`;
-        const range = $('.option-range', row);
-        const value = $('.option-range-value', row);
-        const sync = () => {
-            value.textContent = range.value;
-            range.style.setProperty('--fill', ((range.value - range.min) / (range.max - range.min) * 100) + '%');
-        };
-        range.addEventListener('input', sync);
-        range.addEventListener('change', () => saveSetting('compressQuality', range.value));
-        sync();
-
-        tool.refs.options.appendChild(row);
-        tool.qualityInput = range;
-
-        const exts = [];
-        Object.values(CATEGORY_SOURCE).forEach((op) => {
-            listOf(formatsFor(op).input).forEach((ext) => {
-                if (!exts.includes(ext)) exts.push(ext);
-            });
-        });
-        setAccepted(tool, exts, 'Images, audio, video and PDFs');
-    }
-
     function categoryOf(ext) {
-        return Object.keys(CATEGORY_SOURCE).find((cat) =>
+        return CATEGORIES.find((cat) =>
             listOf(formatsFor(CATEGORY_SOURCE[cat]).input).includes(ext)) || null;
     }
 
-    // Resolves the job for a file from the tool's current settings, or returns { error }.
-    function jobFor(tool, ext) {
-        if (tool.mode === 'convert') {
-            const { operation, format } = convertTarget(tool);
-            if (!listOf(formatsFor(operation).input).includes(ext)) {
-                const category = categoryOf(ext);
-                const hint = category ? ` Pick a matching format in “Convert to” for ${CATEGORY_LABELS[category]}.` : '';
-                return { error: `.${ext} can't be converted to ${tool.picker.el.querySelector('.picker-value').textContent}.${hint}` };
-            }
-            const params = { output_format: format };
-            if (operation === 'video_compress') params.quality = VIDEO_CONVERT_QUALITY;
-            return { operation, params };
-        }
-
-        const category = categoryOf(ext);
-        const operation = category && COMPRESS_OPS[category];
-        if (!operation || !listOf(formatsFor(operation).input).includes(ext)) {
-            return { error: `.${ext} files can't be compressed.` };
-        }
-        const quality = parseInt(tool.qualityInput.value, 10);
-        const params = operation === 'pdf_compress' ? { image_quality: quality } : { quality };
-        return { operation, params };
-    }
-
-    // Dropped files are processed right away with the settings selected at that moment.
     function addFiles(tool, fileList) {
         const rejected = [];
 
         Array.from(fileList).forEach((file) => {
             const ext = getExtension(file.name);
-            const job = jobFor(tool, ext);
-            if (job.error) {
-                rejected.push(`${file.name}: ${job.error}`);
+            const category = categoryOf(ext);
+            if (!category) {
+                rejected.push(`${file.name}: .${ext} files aren't supported.`);
                 return;
             }
-            addFileRow(tool, file, ext, job);
+            if (!tool.categories.includes(category)) {
+                rejected.push(`${file.name}: ${CATEGORY_TITLES[category]} files can only be compressed. Use the Compress tab.`);
+                return;
+            }
+            addFileRow(tool, file, ext, category);
         });
 
         if (rejected.length) {
             showAlert(rejected.join('\n\n'), rejected.length === 1 ? 'File skipped' : 'Files skipped');
         }
 
-        updateList(tool);
+        refresh(tool);
+    }
+
+    function pendingFiles(tool) {
+        return tool.files.filter((f) => f.status === 'ready');
+    }
+
+    // Shows the settings for whatever is waiting to be processed, built from those files' types.
+    function refresh(tool) {
+        const pending = pendingFiles(tool);
+        const signature = pending.map((f) => f.category + ':' + f.ext).sort().join('|');
+
+        if (signature !== tool.setupSignature) {
+            tool.setupSignature = signature;
+            if (pending.length) buildOptions(tool, pending);
+        }
+        tool.refs.setup.classList.toggle('open', pending.length > 0);
+        if (!pending.length) tool.refs.setup.classList.remove('settled');
+        setInert(tool.refs.setup, pending.length === 0);
+
+        const verb = tool.mode === 'convert' ? 'Convert' : 'Compress';
+        tool.refs.action.textContent = `${verb} ${pending.length} ${pending.length === 1 ? 'file' : 'files'}`;
+
+        tool.refs.files.classList.toggle('hidden', tool.files.length === 0);
+        tool.refs.count.textContent = `${tool.files.length} ${tool.files.length === 1 ? 'file' : 'files'}`;
+    }
+
+    function setInert(el, inert) {
+        if (inert) el.setAttribute('inert', '');
+        else el.removeAttribute('inert');
+    }
+
+    function buildOptions(tool, pending) {
+        const opts = tool.refs.options;
+        opts.innerHTML = '';
+        tool.controls = {};
+
+        const byCategory = {};
+        pending.forEach((f) => {
+            (byCategory[f.category] = byCategory[f.category] || []).push(f.ext);
+        });
+        const categories = CATEGORIES.filter((c) => byCategory[c]);
+        const multi = categories.length > 1;
+
+        categories.forEach((category) => {
+            const exts = [...new Set(byCategory[category])];
+            const group = document.createElement('div');
+            group.className = 'option-group';
+            if (multi) {
+                const caption = document.createElement('div');
+                caption.className = 'option-group-label';
+                caption.textContent = CATEGORY_TITLES[category];
+                group.appendChild(caption);
+            }
+            if (tool.mode === 'convert') {
+                group.appendChild(convertRow(tool, category, multi));
+            } else {
+                compressRows(tool, category, exts).forEach((row) => group.appendChild(row));
+            }
+            opts.appendChild(group);
+        });
+    }
+
+    function convertRow(tool, category, multi) {
+        const groups = [];
+        if (category === 'image') {
+            groups.push({ label: 'Image', items: formatItems('image_convert') });
+            groups.push({ label: 'Remove background', items: formatItems('image_remove_bg', ' · transparent') });
+        } else if (category === 'audio') {
+            groups.push({ label: 'Audio', items: formatItems('audio_convert') });
+        } else {
+            groups.push({ label: 'Video', items: formatItems('video_compress') });
+        }
+
+        const id = uid('convert-label');
+        const row = optionRow(multi ? `${CATEGORY_TITLES[category]} to` : 'Convert to', id);
+        const key = `target.${category}`;
+        const picker = createPicker({
+            groups: groups.filter((g) => g.items.length),
+            grid: true,
+            value: loadSetting(key, DEFAULTS.target[category]),
+            labelledBy: id,
+            onChange: (value) => saveSetting(key, value),
+        });
+        row.appendChild(picker.el);
+        tool.controls[`target.${category}`] = picker;
+        return row;
+    }
+
+    function formatItems(operation, suffix = '') {
+        return listOf(formatsFor(operation).output).map((f) => ({
+            value: `${operation}:${f}`,
+            label: f.toUpperCase(),
+            display: f.toUpperCase() + suffix,
+        }));
+    }
+
+    function compressRows(tool, category, exts) {
+        const rows = [];
+
+        if (category === 'video') {
+            const id = uid('video-format');
+            const row = optionRow('Format', id);
+            const picker = createPicker({
+                groups: [{
+                    items: [{ value: '', label: 'Keep original', display: 'Keep original' }]
+                        .concat(listOf(formatsFor('video_compress').output).map((f) => ({ value: f, label: f.toUpperCase() }))),
+                }],
+                value: loadSetting('videoFormat', ''),
+                labelledBy: id,
+                onChange: (value) => {
+                    saveSetting('videoFormat', value);
+                    quality.update();
+                },
+            });
+            row.appendChild(picker.el);
+            tool.controls.videoFormat = picker;
+            rows.push(row);
+        }
+
+        if (category === 'pdf') {
+            const id = uid('pdf-dpi');
+            const row = optionRow('Image DPI', id);
+            const picker = createPicker({
+                groups: [{
+                    items: [
+                        { value: '72', label: '72 DPI', note: 'Smallest, screen only' },
+                        { value: '150', label: '150 DPI', note: 'Balanced, readable when zoomed' },
+                        { value: '300', label: '300 DPI', note: 'Print quality' },
+                        { value: '600', label: '600 DPI', note: 'Archival, largest' },
+                    ],
+                }],
+                value: loadSetting('pdfDpi', '150'),
+                labelledBy: id,
+                onChange: (value) => saveSetting('pdfDpi', value),
+            });
+            row.appendChild(picker.el);
+            tool.controls.pdfDpi = picker;
+            rows.push(row);
+        }
+
+        const formatsForInfo = () => {
+            if (category !== 'video') return exts;
+            const chosen = tool.controls.videoFormat && tool.controls.videoFormat.value;
+            if (chosen) return [chosen];
+            const outputs = listOf(formatsFor('video_compress').output);
+            return exts.map((e) => (outputs.includes(e) ? e : 'mp4'));
+        };
+
+        const quality = qualityRow(category, formatsForInfo);
+        tool.controls[`quality.${category}`] = quality;
+        rows.push(quality.el);
+
+        const losslessExts = LOSSLESS_FORMATS[category];
+        if (losslessExts && exts.some((e) => losslessExts.includes(e))) {
+            const note = category === 'image'
+                ? 'Applies to PNG, WEBP, AVIF and TIFF. JPEGs always use the quality setting.'
+                : 'Applies to FLAC, WAV and AIFF. Other formats use maximum quality.';
+            const toggle = switchRow('Lossless', note, loadSetting(`lossless.${category}`, 'false') === 'true', (checked) => {
+                saveSetting(`lossless.${category}`, checked);
+                quality.setLossless(checked);
+            });
+            tool.controls[`lossless.${category}`] = toggle;
+            quality.setLossless(toggle.checked);
+            rows.push(toggle.el);
+        }
+
+        return rows;
+    }
+
+    function uid(prefix) {
+        return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    function optionRow(label, labelId) {
+        const row = document.createElement('div');
+        row.className = 'option-row';
+        const span = document.createElement('span');
+        span.className = 'option-label';
+        span.id = labelId;
+        span.textContent = label;
+        row.appendChild(span);
+        return row;
+    }
+
+    function qualityRow(category, getFormats) {
+        const key = `quality.${category}`;
+        const initial = loadNumber(key, DEFAULTS.quality[category]);
+        const id = uid('quality');
+        const presets = QUALITY_PRESETS[category === 'pdf' ? 'pdf' : 'default'];
+
+        const row = document.createElement('div');
+        row.className = 'option-row option-row-quality';
+        row.innerHTML = `
+            <div class="quality-head">
+                <label class="option-label" for="${id}">${category === 'pdf' ? 'Image quality' : 'Quality'}</label>
+                <span class="quality-badge"><span class="quality-tier"></span><span class="quality-value"></span></span>
+            </div>
+            <input type="range" class="option-range" id="${id}" min="1" max="100" value="${initial}">
+            <div class="quality-presets">${presets.map(([name, v]) =>
+                `<button type="button" class="quality-preset" data-value="${v}">${name}</button>`).join('')}</div>
+            <p class="quality-desc"></p>
+            <p class="quality-detail"></p>`;
+
+        const range = $('.option-range', row);
+        let lossless = false;
+
+        function update() {
+            const q = parseInt(range.value, 10);
+            const info = qualityInfo(category, getFormats(), q, lossless);
+            range.style.setProperty('--fill', ((q - 1) / 99 * 100) + '%');
+            $('.quality-tier', row).textContent = info.tier;
+            $('.quality-value', row).textContent = lossless ? '' : q;
+            $('.quality-desc', row).textContent = info.desc;
+            $('.quality-detail', row).textContent = info.detail;
+            $$('.quality-preset', row).forEach((b) => {
+                b.classList.toggle('active', !lossless && parseInt(b.dataset.value, 10) === q);
+            });
+        }
+
+        range.addEventListener('input', update);
+        range.addEventListener('change', () => saveSetting(key, range.value));
+        $$('.quality-preset', row).forEach((b) => {
+            b.addEventListener('click', () => {
+                range.value = b.dataset.value;
+                saveSetting(key, range.value);
+                update();
+            });
+        });
+        update();
+
+        return {
+            el: row,
+            get value() { return parseInt(range.value, 10); },
+            update,
+            setLossless(on) {
+                lossless = on;
+                range.disabled = on;
+                $$('.quality-preset', row).forEach((b) => { b.disabled = on; });
+                row.classList.toggle('is-lossless', on);
+                update();
+            },
+        };
+    }
+
+    function switchRow(label, note, checked, onChange) {
+        const id = uid('switch');
+        const row = document.createElement('label');
+        row.className = 'option-row switch-row';
+        row.setAttribute('for', id);
+        row.innerHTML = `
+            <span class="switch-text">
+                <span class="option-label"></span>
+                <span class="switch-note"></span>
+            </span>
+            <input type="checkbox" class="switch" id="${id}">`;
+        $('.option-label', row).textContent = label;
+        $('.switch-note', row).textContent = note;
+        const input = $('.switch', row);
+        input.checked = checked;
+        input.addEventListener('change', () => onChange(input.checked));
+        return { el: row, get checked() { return input.checked; } };
+    }
+
+    // Resolves the backend job for a file from the current settings, or returns { error }.
+    function jobFor(tool, item) {
+        const { category, ext } = item;
+        const c = tool.controls;
+
+        if (tool.mode === 'convert') {
+            const [operation, format] = c[`target.${category}`].value.split(':');
+            if (!listOf(formatsFor(operation).input).includes(ext)) {
+                return { error: `.${ext} can't be converted to ${c[`target.${category}`].text}.` };
+            }
+            const params = { output_format: format };
+            if (operation === 'video_compress') params.quality = VIDEO_CONVERT_QUALITY;
+            return { operation, params };
+        }
+
+        const operation = COMPRESS_OPS[category];
+        if (!listOf(formatsFor(operation).input).includes(ext)) {
+            return { error: `.${ext} files can't be compressed.` };
+        }
+        const quality = c[`quality.${category}`].value;
+        const lossless = c[`lossless.${category}`] ? c[`lossless.${category}`].checked : false;
+        switch (category) {
+            case 'pdf':
+                return { operation, params: { image_quality: quality, image_dpi: c.pdfDpi.value } };
+            case 'video': {
+                const params = { quality };
+                if (c.videoFormat.value) params.output_format = c.videoFormat.value;
+                return { operation, params };
+            }
+            default:
+                return { operation, params: { quality, lossless } };
+        }
+    }
+
+    function startPending(tool) {
+        pendingFiles(tool).forEach((item) => {
+            const job = jobFor(tool, item);
+            if (job.error) {
+                setError(item, job.error);
+            } else {
+                item.operation = job.operation;
+                item.params = job.params;
+                item.status = 'waiting';
+            }
+            renderFile(item);
+        });
+        refresh(tool);
         pump(tool);
     }
 
-    function addFileRow(tool, file, ext, job) {
+    function addFileRow(tool, file, ext, category) {
         const item = {
             id: tool.nextId++,
             file,
             ext,
-            operation: job.operation,
-            params: job.params,
-            status: 'waiting',
+            category,
+            status: 'ready',
             progress: 0,
             jobId: null,
             xhr: null,
@@ -562,8 +896,7 @@
         renderFile(item);
     }
 
-    function removeFile(tool, item) {
-        const wasUploading = item.status === 'uploading';
+    function disposeFile(item) {
         if (item.xhr) {
             item.removed = true;
             item.xhr.abort();
@@ -572,17 +905,26 @@
         if (item.jobId) {
             fetch(`/api/jobs/${item.jobId}`, { method: 'DELETE' }).catch(() => {});
         }
+    }
+
+    function removeFile(tool, item) {
+        const wasUploading = item.status === 'uploading';
+        disposeFile(item);
         item.el.row.remove();
         tool.files = tool.files.filter((f) => f !== item);
         if (wasUploading) {
             tool.uploading = false;
             pump(tool);
         }
-        updateList(tool);
+        refresh(tool);
     }
 
-    function updateList(tool) {
-        tool.refs.list.classList.toggle('hidden', tool.files.length === 0);
+    function clearAll(tool) {
+        tool.files.forEach(disposeFile);
+        tool.files = [];
+        tool.uploading = false;
+        tool.refs.list.innerHTML = '';
+        refresh(tool);
     }
 
     // Upload one file at a time; processing on the server runs in parallel.
@@ -719,6 +1061,7 @@
         const size = formatBytes(item.file.size);
         const busy = ['waiting', 'uploading', 'queued', 'processing'].includes(item.status);
 
+        row.classList.toggle('is-ready', item.status === 'ready');
         row.classList.toggle('is-error', item.status === 'error');
         row.classList.toggle('is-uploading', item.status === 'waiting' || item.status === 'uploading');
         row.classList.toggle('is-processing', item.status === 'queued' || item.status === 'processing');
@@ -731,6 +1074,9 @@
         download.setAttribute('aria-disabled', item.status !== 'done');
 
         switch (item.status) {
+            case 'ready':
+                meta.textContent = `${size} · Ready`;
+                break;
             case 'waiting':
                 meta.textContent = `${size} · Waiting…`;
                 break;

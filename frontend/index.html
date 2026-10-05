@@ -130,8 +130,19 @@
             <p class="dropzone-formats" data-ref="formats"></p>
         </div>
         <input type="file" class="file-input" data-ref="input" multiple>
-        <div class="options" data-ref="options"></div>
-        <div class="file-list hidden" data-ref="list"></div>
+        <div class="setup" data-ref="setup">
+            <div class="setup-inner">
+                <div class="options" data-ref="options"></div>
+                <button type="button" class="btn-accent btn-action" data-ref="action"></button>
+            </div>
+        </div>
+        <div class="files hidden" data-ref="files">
+            <div class="files-header">
+                <span class="files-count" data-ref="count"></span>
+                <button type="button" class="btn-text" data-ref="clear">Clear all</button>
+            </div>
+            <div class="file-list" data-ref="list"></div>
+        </div>
     </template>
 
     <div id="alert-modal" class="modal-overlay hidden">
