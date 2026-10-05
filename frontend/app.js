@@ -57,7 +57,6 @@
     const LOCAL_AUDIO_OUTPUTS = ['wav', 'aiff'];
     const LOCAL_CATEGORIES = { convert: ['image', 'audio'], compress: ['image'] };
 
-    const ICON_LOCK = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
     const ICON_CLOUD = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z"/></svg>';
 
     const MIME_MAP = {
@@ -124,7 +123,7 @@
         state.mode = loadSetting('mode', 'local') === 'online' ? 'online' : 'local';
         state.tools.convert = createFileTool('convert', $('#panel-convert'));
         state.tools.compress = createFileTool('compress', $('#panel-compress'));
-        setMode(state.mode, { initial: true });
+        setMode(state.mode);
         createQrTypePicker();
         bindEvents();
         switchQrType();
@@ -169,18 +168,6 @@
 
         $$('.mode-btn').forEach((btn) => {
             btn.addEventListener('click', () => setMode(btn.dataset.mode, { persist: true }));
-        });
-
-        document.addEventListener('ilc:modechange', (e) => {
-            const { mode, auto } = e.detail;
-            if (auto) {
-                pulse($('.mode-toggle'), 'pulse');
-                showToast(`${ICON_CLOUD}<span>Switched to Online mode. Uploads are encrypted and deleted after 24 hours.</span>`);
-            } else {
-                showToast(mode === 'local'
-                    ? `${ICON_LOCK}<span>Local mode. Files stay on this device.</span>`
-                    : `${ICON_CLOUD}<span>Online mode. Files are processed on the server.</span>`);
-            }
         });
 
         $('#btn-alert-close').addEventListener('click', () => {
@@ -285,19 +272,64 @@
             .then(() => { el.style.overflow = ''; });
     }
 
-    let toastTimer;
-    function showToast(html) {
-        const toast = $('#toast');
-        toast.innerHTML = html;
-        toast.classList.add('show');
-        clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
+    // Spins the logo while anything is uploading or processing. It eases in, and when work
+    // stops it eases out onto a whole turn, always completing at least one full rotation.
+    const spinner = { angle: 0, start: 0, velocity: 0, busy: false, target: null, frame: 0, last: 0 };
+    const SPIN_MAX = 540;
+    const SPIN_ACCEL = 720;
+
+    function setBusy(busy) {
+        if (busy === spinner.busy) return;
+        spinner.busy = busy;
+        if (busy) spinner.target = null;
+        if (busy && !spinner.frame && !reducedMotion.matches) {
+            spinner.start = spinner.angle;
+            spinner.last = performance.now();
+            spinner.frame = requestAnimationFrame(spinStep);
+        }
+    }
+
+    function spinStep(now) {
+        const dt = Math.min(0.05, (now - spinner.last) / 1000);
+        spinner.last = now;
+        const brake = (spinner.velocity * spinner.velocity) / (2 * SPIN_ACCEL);
+
+        if (!spinner.busy && spinner.target === null) {
+            const minimum = spinner.start + 360;
+            spinner.target = Math.max(minimum, Math.ceil((spinner.angle + brake) / 360) * 360);
+        }
+
+        const remaining = spinner.target === null ? Infinity : spinner.target - spinner.angle;
+        if (remaining <= brake) {
+            spinner.velocity = Math.max(0, spinner.velocity - (spinner.velocity * spinner.velocity) / (2 * Math.max(remaining, 0.001)) * dt);
+        } else {
+            spinner.velocity = Math.min(SPIN_MAX, spinner.velocity + SPIN_ACCEL * dt);
+        }
+        spinner.angle += spinner.velocity * dt;
+
+        const logo = $('.brand-logo');
+        if (spinner.target !== null && (spinner.angle >= spinner.target - 0.5 || spinner.velocity === 0)) {
+            spinner.angle = 0;
+            spinner.velocity = 0;
+            spinner.target = null;
+            spinner.frame = 0;
+            logo.style.transform = '';
+            return;
+        }
+        logo.style.transform = `rotate(${spinner.angle % 360}deg)`;
+        spinner.frame = requestAnimationFrame(spinStep);
+    }
+
+    const BUSY_STATUSES = ['waiting', 'uploading', 'queued', 'processing'];
+
+    function updateBusy() {
+        setBusy(Object.values(state.tools).some((tool) =>
+            tool.files.some((f) => BUSY_STATUSES.includes(f.status))));
     }
 
     /* ---------- Local / Online mode ---------- */
 
-    function setMode(mode, { persist = false, auto = false, initial = false } = {}) {
-        const changed = mode !== state.mode;
+    function setMode(mode, { persist = false } = {}) {
         state.mode = mode;
         if (persist) saveSetting('mode', mode);
 
@@ -310,23 +342,11 @@
 
         positionIndicator($('.mode-toggle'), $('.mode-btn.active'), $('.mode-indicator'));
 
+        // Rebuild settings so on-device / online markers match the new mode.
         Object.values(state.tools).forEach((tool) => {
-            const visible = !tool.refs.dropzone.closest('.tool-panel').classList.contains('hidden');
-            if (!initial && changed && visible) {
-                pulse(tool.refs.modeNote, 'swap');
-                if (!tool.prompting) pulse(tool.refs.dropzone, 'mode-flash');
-            }
-            tool.refs.modeNote.innerHTML = mode === 'local'
-                ? `${ICON_LOCK}<span>Processed on your device. Nothing is uploaded.</span>`
-                : `${ICON_CLOUD}<span>Encrypted upload, deleted after 24 hours.</span>`;
-            // Rebuild settings so on-device / online markers match the new mode.
             tool.setupSignature = null;
             refresh(tool);
         });
-
-        if (!initial && changed) {
-            document.dispatchEvent(new CustomEvent('ilc:modechange', { detail: { mode, auto } }));
-        }
     }
 
     /* ---------- Picker (custom dropdown) ---------- */
@@ -716,6 +736,7 @@
 
         tool.refs.files.classList.toggle('hidden', tool.files.length === 0);
         tool.refs.count.textContent = `${tool.files.length} ${tool.files.length === 1 ? 'file' : 'files'}`;
+        updateBusy();
     }
 
     function setInert(el, inert) {
@@ -1134,7 +1155,7 @@
             item.status = 'waiting';
             renderFile(item);
         });
-        setMode('online', { auto: true });
+        setMode('online');
         updateCloudPrompt(tool);
         pump(tool);
     }
@@ -1404,17 +1425,16 @@
     function renderFile(item) {
         const { row, meta, download } = item.el;
         const size = formatBytes(item.file.size);
-        const busy = ['waiting', 'uploading', 'queued', 'processing'].includes(item.status);
+        const busy = BUSY_STATUSES.includes(item.status);
+        updateBusy();
 
         row.classList.toggle('is-ready', item.status === 'ready');
         row.classList.toggle('is-cloud', item.status === 'needs-cloud');
         row.classList.toggle('is-error', item.status === 'error');
-        row.classList.toggle('is-uploading', item.status === 'waiting' || item.status === 'uploading');
-        row.classList.toggle('is-processing', item.status === 'queued' || item.status === 'processing');
+        row.classList.toggle('is-busy', busy);
         row.classList.toggle('is-done', item.status === 'done');
         if (item.status === 'done' && item.shownStatus !== 'done') pulse(row, 'just-done');
         item.shownStatus = item.status;
-        row.style.setProperty('--progress', item.status === 'uploading' ? item.progress : 0);
         row.setAttribute('aria-busy', busy);
 
         download.classList.toggle('hidden', item.status === 'error' || item.status === 'needs-cloud');
