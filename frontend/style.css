@@ -1404,6 +1404,10 @@ button.search-result-item:hover {
     white-space: pre-line;
 }
 
+#consent-modal .modal-text {
+    white-space: normal;
+}
+
 .modal-text a {
     color: var(--accent);
     text-decoration: none;
@@ -1674,8 +1678,19 @@ button.search-result-item:hover {
         font-size: 17px;
     }
 
+    .modal-content {
+        padding: 28px 20px 20px;
+    }
+
     .modal-actions {
-        flex-direction: column;
+        flex-direction: column-reverse;
+        gap: 10px;
+    }
+
+    .modal-actions button {
+        flex: none;
+        width: 100%;
+        height: 52px;
     }
 }
 
