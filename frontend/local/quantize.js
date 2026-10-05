@@ -61,7 +61,6 @@
             const slice = entries.slice(target.start, target.end).sort((a, b) => channel(a, axis) - channel(b, axis));
             for (let i = 0; i < slice.length; i++) entries[target.start + i] = slice[i];
 
-            // Split at the weighted median, keeping at least one entry on each side.
             let acc = 0;
             let split = target.end - 1;
             for (let i = target.start; i < target.end - 1; i++) {

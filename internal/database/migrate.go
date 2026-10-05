@@ -26,8 +26,6 @@ func (db *DB) Migrate(ctx context.Context) error {
 		return fmt.Errorf("migrate: %w", err)
 	}
 	if !exists {
-		// Counts and flags from before this column existed included status polls
-		// and lifetime totals, so they are reset once along with the schema change.
 		_, err = tx.ExecContext(ctx, `
 			ALTER TABLE sessions ADD COLUMN hourly_window_start TIMESTAMPTZ NOT NULL DEFAULT NOW();
 			UPDATE sessions SET hourly_request_count = 0, is_flagged = FALSE;
@@ -38,7 +36,6 @@ func (db *DB) Migrate(ctx context.Context) error {
 		log.Println("[db] Migrated sessions table (hourly_window_start)")
 	}
 
-	// Lifetime request totals per IP are no longer kept.
 	err = tx.QueryRowContext(ctx, `
 		SELECT EXISTS (
 			SELECT 1 FROM information_schema.columns

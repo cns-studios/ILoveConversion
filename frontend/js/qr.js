@@ -55,7 +55,6 @@ export function generateQrCode() {
             const password = dom.qrWifiPassword.value.trim();
             const hidden = dom.qrWifiHidden.checked ? 'true' : 'false';
             if (ssid) {
-                // WiFi QR code format: WIFI:T:WPA;S:SSID;P:PASSWORD;H:HIDDEN;;
                 data = `WIFI:T:WPA;S:${escapeWifiString(ssid)};P:${password ? escapeWifiString(password) : ''};H:${hidden};;`;
             }
             break;

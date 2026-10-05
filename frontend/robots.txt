@@ -1,9 +1,7 @@
-# ILC (ILoveConversion) - https://ilc.cns-studios.com
 User-agent: *
 Allow: /
 Disallow: /api/
 
-# AI assistants and search crawlers are welcome to read and cite the public pages.
 User-agent: GPTBot
 User-agent: OAI-SearchBot
 User-agent: ChatGPT-User
