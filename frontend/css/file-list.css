@@ -1,5 +1,3 @@
-/* ---------- Files ---------- */
-
 .files {
     display: flex;
     flex-direction: column;
@@ -32,8 +30,6 @@
 .btn-text:hover {
     color: var(--text-primary);
 }
-
-/* ---------- File list ---------- */
 
 .file-list {
     display: flex;
@@ -82,8 +78,6 @@
     background: var(--divider);
 }
 
-/* Shine band from the processing frame (ramps up to the leading edge, then falls off). It is
-   tiled along a wide strip that slides at one constant speed for as long as the file is busy. */
 .file-row::after {
     content: '';
     position: absolute;

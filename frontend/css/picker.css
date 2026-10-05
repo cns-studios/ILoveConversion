@@ -179,7 +179,6 @@
     background: var(--accent);
 }
 
-/* Targets that need the server in local mode get a small cloud mark. */
 .picker-menu.is-grid .picker-option.is-cloud {
     position: relative;
     color: var(--text-secondary);

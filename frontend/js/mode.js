@@ -15,7 +15,6 @@ export function setMode(mode) {
 
     positionIndicator($('.mode-toggle'), $('.mode-btn.active'), $('.mode-indicator'));
 
-    // Rebuild settings so on-device / online markers match the new mode.
     Object.values(state.tools).forEach((tool) => {
         tool.setupSignature = null;
         refresh(tool);

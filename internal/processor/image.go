@@ -20,7 +20,6 @@ func ImageConvert(ctx context.Context, inputPath, outputPath string, params mode
 		return err
 	}
 
-	// Handle PDF output as a special case
 	if params.OutputFormat == "pdf" {
 		return imageToPDF(ctx, inputPath, outputPath, params)
 	}
@@ -179,7 +178,6 @@ func imageToPDF(ctx context.Context, inputPath, outputPath string, params models
 		return err
 	}
 
-	// Open and decode image to get dimensions
 	file, err := os.Open(inputPath)
 	if err != nil {
 		return fmt.Errorf("open image: %w", err)
@@ -191,19 +189,15 @@ func imageToPDF(ctx context.Context, inputPath, outputPath string, params models
 		return fmt.Errorf("decode image config: %w", err)
 	}
 
-	// Convert pixels to mm (1 inch = 25.4 mm, 72 dpi standard)
 	mmPerInch := 25.4
 	dpi := 72.0
 	widthMM := float64(cfg.Width) * mmPerInch / dpi
 	heightMM := float64(cfg.Height) * mmPerInch / dpi
 
-	// Create PDF (with dummy initial size, will be reset)
 	pdf := gofpdf.New("P", "mm", "A4", "")
-	
-	// Add page with custom dimensions matching image
+
 	pdf.AddPageFormat("P", gofpdf.SizeType{Wd: widthMM, Ht: heightMM})
-	
-	// Embed image filling the entire page
+
 	pdf.ImageOptions(inputPath, 0, 0, widthMM, heightMM, false, gofpdf.ImageOptions{ImageType: "", ReadDpi: true}, 0, "")
 
 	if err := pdf.OutputFileAndClose(outputPath); err != nil {

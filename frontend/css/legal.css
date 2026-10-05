@@ -1,5 +1,3 @@
-/* ---------- Legal pages ---------- */
-
 .legal-content {
     max-width: 640px;
     width: 100%;
@@ -135,7 +133,6 @@
     line-height: 1.5;
 }
 
-/* On narrow screens each row becomes a card with its column names inline. */
 @media (max-width: 600px) {
     .legal-table thead {
         display: none;
@@ -172,7 +169,6 @@
     }
 }
 
-/* Template values that still need to be filled in. */
 mark.placeholder {
     background: var(--accent-soft);
     color: var(--bg-primary);

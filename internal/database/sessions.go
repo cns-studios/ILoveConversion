@@ -9,8 +9,6 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// TouchSession upserts the session for ip. With count set, the request is
-// added to the current hourly window, which restarts once it is an hour old.
 func (db *DB) TouchSession(ctx context.Context, ip string, count bool, flagThreshold int) (*models.Session, error) {
 	var s models.Session
 
@@ -49,9 +47,6 @@ func (db *DB) TouchSession(ctx context.Context, ip string, count bool, flagThres
 	return &s, nil
 }
 
-// CleanupInactiveSessions deletes sessions (and with them the stored IP address) that
-// have seen no request for 24 hours. Sessions that still own jobs are kept until the
-// job cleanup has removed those jobs and their files.
 func (db *DB) CleanupInactiveSessions(ctx context.Context) (int64, error) {
 	res, err := db.pool.ExecContext(ctx, `
 		DELETE FROM sessions s

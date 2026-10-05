@@ -1,4 +1,3 @@
-# ── Build Stage ──
 FROM golang:1.22-bookworm AS builder
 
 WORKDIR /build

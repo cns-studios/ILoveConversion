@@ -61,7 +61,6 @@ export function createFileTool(mode, panel) {
         addFiles(tool, refs.input.files);
         refs.input.value = '';
     });
-    // Let pickers overflow the panel once it has finished expanding.
     refs.setup.addEventListener('transitionend', (e) => {
         if (e.target === refs.setup && refs.setup.classList.contains('open')) {
             refs.setup.classList.add('settled');

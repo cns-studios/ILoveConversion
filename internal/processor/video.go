@@ -58,8 +58,8 @@ func h264Args(quality int) []string {
 		"-c:v", "libx264",
 		"-crf", fmt.Sprintf("%d", crf),
 		"-preset", h264Preset(quality),
-		"-pix_fmt", "yuv420p", // max player compatibility
-		"-threads", "0",       // auto
+		"-pix_fmt", "yuv420p",
+		"-threads", "0",
 	}
 }
 
@@ -78,15 +78,14 @@ func h264Preset(quality int) string {
 	}
 }
 
-
 func vp9Args(quality int) []string {
 	crf := qualityToVP9CRF(quality)
 	return []string{
 		"-c:v", "libvpx-vp9",
 		"-crf", fmt.Sprintf("%d", crf),
-		"-b:v", "0",     // required for CRF mode in VP9
-		"-row-mt", "1",  // row-based multithreading (significant speedup)
-		"-threads", "0", // auto
+		"-b:v", "0",
+		"-row-mt", "1",
+		"-threads", "0",
 		"-pix_fmt", "yuv420p",
 	}
 }

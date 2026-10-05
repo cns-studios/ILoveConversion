@@ -21,7 +21,7 @@ type Config struct {
 	RedisPort     int
 	RedisPoolSize int
 
-	MasterKey []byte 
+	MasterKey []byte
 
 	RateLimitPerHour int
 	FlagThreshold    int
@@ -66,7 +66,6 @@ func (c *Config) MaxRetriesFor(operation string) int {
 }
 
 func Load() (*Config, error) {
-	// ── Master encryption key (required) ──
 	masterKeyHex := os.Getenv("ENCRYPTION_MASTER_KEY")
 	if masterKeyHex == "" {
 		return nil, fmt.Errorf("ENCRYPTION_MASTER_KEY is required (generate with: openssl rand -hex 32)")
@@ -97,7 +96,7 @@ func Load() (*Config, error) {
 		RateLimitPerHour: envInt("RATE_LIMIT_PER_HOUR", 600),
 		FlagThreshold:    envInt("FLAG_THRESHOLD", 5000),
 
-		MaxFileSize:        envInt64("MAX_FILE_SIZE", 524288000), // 500MB default
+		MaxFileSize:        envInt64("MAX_FILE_SIZE", 524288000),
 		StoragePath:        envStr("STORAGE_PATH", "/app/storage"),
 		CleanupIntervalMin: envInt("CLEANUP_INTERVAL_MINUTES", 5),
 		FileRetentionHours: envInt("FILE_RETENTION_HOURS", 1),
@@ -136,7 +135,6 @@ func Load() (*Config, error) {
 
 	return cfg, nil
 }
-
 
 func envStr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {

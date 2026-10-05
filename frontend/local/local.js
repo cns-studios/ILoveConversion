@@ -1,6 +1,3 @@
-// Local mode: processes files on this device. Images go through a Web Worker (or the main
-// thread where OffscreenCanvas is missing); audio is decoded with the Web Audio API.
-// Nothing in here touches the network.
 (function (global) {
     'use strict';
 
@@ -62,7 +59,6 @@
         });
     }
 
-    // decodeAudioData resamples to the context rate; 44.1 kHz matches most music sources.
     async function audio(file, task) {
         const Ctx = global.OfflineAudioContext || global.webkitOfflineAudioContext;
         if (!Ctx) throw new LocalError('decode', 'This browser has no audio decoder.');

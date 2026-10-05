@@ -1,5 +1,3 @@
-/* ---------- Dropzone ---------- */
-
 .dropzone {
     display: flex;
     flex-direction: column;
@@ -36,7 +34,6 @@
     display: none;
 }
 
-/* Cloud prompt: shown in place of the dropzone when local mode can't handle a file. */
 .dropzone.is-cloud-prompt {
     padding: 40px 72px;
     border-color: var(--danger-border);

@@ -162,8 +162,6 @@ func (w *worker) handleProcessError(ctx context.Context, workerID int, jobID, op
 	}
 }
 
-// failJob marks a job as permanently failed. Retries go through the queue instead,
-// so the input is no longer needed here.
 func (w *worker) failJob(ctx context.Context, jobID, msg string) {
 	if len(msg) > 1000 {
 		msg = msg[:1000] + "…"
