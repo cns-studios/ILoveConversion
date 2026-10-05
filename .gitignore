@@ -5,3 +5,4 @@
 .vscode/
 # Sources of the legal pages (built with scripts/build_legal.py)
 !legal/*.md
+scripts/
