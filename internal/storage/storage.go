@@ -48,6 +48,11 @@ func (s *Storage) OutputExists(jobID string) bool {
 	return err == nil
 }
 
+// DeleteInput removes the encrypted upload once a job no longer needs it.
+func (s *Storage) DeleteInput(jobID string) {
+	os.Remove(s.InputPath(jobID))
+}
+
 func (s *Storage) DeleteJobFiles(jobID string) {
 	os.Remove(s.InputPath(jobID))
 	os.Remove(s.OutputPath(jobID))

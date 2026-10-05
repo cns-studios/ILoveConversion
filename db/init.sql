@@ -9,7 +9,6 @@ CREATE TABLE sessions (
     last_request_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     hourly_window_start TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     hourly_request_count INTEGER NOT NULL DEFAULT 0,
-    total_request_count  INTEGER NOT NULL DEFAULT 0,
     is_flagged          BOOLEAN NOT NULL DEFAULT FALSE,
 
     CONSTRAINT uq_sessions_ip UNIQUE (ip_address)
@@ -57,7 +56,7 @@ CREATE TABLE jobs (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     started_at      TIMESTAMPTZ,
     completed_at    TIMESTAMPTZ,
-    expires_at      TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '24 hours'),
+    expires_at      TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '1 hour'),
 
     CONSTRAINT chk_input_size CHECK (input_size >= 0),
     CONSTRAINT chk_retry_count CHECK (retry_count >= 0)

@@ -43,8 +43,7 @@ func (a *app) sessionMiddleware(count bool) func(http.Handler) http.Handler {
 			}
 
 			if session.IsFlagged {
-				log.Printf("[session] Blocked flagged IP: %s (total: %d)",
-					ip, session.TotalRequestCount)
+				log.Printf("[session] Blocked flagged IP: %s", ip)
 				writeError(w, http.StatusForbidden,
 					"Access restricted. Too many requests from this IP.")
 				return

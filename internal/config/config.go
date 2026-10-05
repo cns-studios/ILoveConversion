@@ -99,8 +99,8 @@ func Load() (*Config, error) {
 
 		MaxFileSize:        envInt64("MAX_FILE_SIZE", 524288000), // 500MB default
 		StoragePath:        envStr("STORAGE_PATH", "/app/storage"),
-		CleanupIntervalMin: envInt("CLEANUP_INTERVAL_MINUTES", 10),
-		FileRetentionHours: envInt("FILE_RETENTION_HOURS", 24),
+		CleanupIntervalMin: envInt("CLEANUP_INTERVAL_MINUTES", 5),
+		FileRetentionHours: envInt("FILE_RETENTION_HOURS", 1),
 
 		WorkerConcurrency: envInt("WORKER_CONCURRENCY", 4),
 		RembgURL:          envStr("REMBG_URL", "http://rembg:5000"),
@@ -125,6 +125,13 @@ func Load() (*Config, error) {
 			"audio_compress":  envInt("RETRY_AUDIO", 2),
 			"video_compress":  envInt("RETRY_VIDEO", 1),
 		},
+	}
+
+	if cfg.FileRetentionHours < 1 {
+		return nil, fmt.Errorf("FILE_RETENTION_HOURS must be a whole number of hours, at least 1")
+	}
+	if cfg.CleanupIntervalMin < 1 {
+		return nil, fmt.Errorf("CLEANUP_INTERVAL_MINUTES must be at least 1")
 	}
 
 	return cfg, nil

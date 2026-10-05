@@ -167,6 +167,13 @@ func (a *app) runCleanup() {
 		log.Printf("[cleanup] Removed %d expired jobs + files", len(ids))
 	}
 
+	removed, err := a.db.CleanupInactiveSessions(ctx)
+	if err != nil {
+		log.Printf("[cleanup] inactive sessions error: %v", err)
+	} else if removed > 0 {
+		log.Printf("[cleanup] Removed %d inactive sessions", removed)
+	}
+
 	n, err := a.db.ResetHourlyCounts(ctx)
 	if err != nil {
 		log.Printf("[cleanup] reset hourly counts error: %v", err)
