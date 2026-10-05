@@ -1,0 +1,94 @@
+/* ---------- Header ---------- */
+
+.site-header {
+    width: 100%;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 49px 57px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-primary);
+    text-decoration: none;
+}
+
+.brand-logo {
+    width: 46px;
+    height: 46px;
+    flex-shrink: 0;
+}
+
+.brand-name {
+    font-family: var(--font-accent);
+    font-size: 40px;
+    font-weight: 500;
+    line-height: 53px;
+}
+
+.mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: var(--bg-secondary);
+    border-radius: 13px;
+}
+
+.mode-toggle {
+    position: relative;
+    isolation: isolate;
+}
+
+.mode-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 380ms cubic-bezier(0.34, 1.36, 0.64, 1), width 380ms cubic-bezier(0.34, 1.36, 0.64, 1), opacity 200ms ease;
+}
+
+.mode-toggle.has-indicator .mode-indicator {
+    opacity: 1;
+}
+
+.mode-toggle.has-indicator .mode-btn.active {
+    background: transparent;
+}
+
+.mode-btn {
+    position: relative;
+    z-index: 1;
+    padding: 6px 18px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+    font-family: var(--font-accent);
+    font-size: 20px;
+    font-weight: 400;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), transform 120ms ease;
+}
+
+.mode-btn:active {
+    transform: scale(0.96);
+}
+
+.mode-btn:hover:not(.active) {
+    background: var(--bg-hover);
+}
+
+.mode-btn.active {
+    background: var(--accent);
+}

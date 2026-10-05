@@ -1,0 +1,65 @@
+/* ---------- Modals ---------- */
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    animation: fadeIn var(--transition-base) forwards;
+}
+
+.modal-content {
+    width: 100%;
+    max-width: 480px;
+    padding: 32px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    text-align: center;
+    animation: fadeSlideUp var(--transition-base) forwards;
+}
+
+.modal-title {
+    margin-bottom: 16px;
+    font-family: var(--font-accent);
+    font-size: 30px;
+    font-weight: 500;
+}
+
+.modal-text {
+    margin-bottom: 24px;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    white-space: pre-line;
+}
+
+#consent-modal .modal-text {
+    white-space: normal;
+}
+
+.modal-text a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.modal-text a:hover {
+    text-decoration: underline;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.modal-actions button {
+    flex: 1;
+    min-width: 0;
+    font-size: 17px;
+}

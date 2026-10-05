@@ -1,0 +1,153 @@
+/* ---------- Options ---------- */
+
+/* Settings appear once files are dropped; grid rows animate the height. */
+.setup {
+    display: grid;
+    grid-template-rows: 0fr;
+    margin-top: -16px;
+    opacity: 0;
+    transition: grid-template-rows 320ms cubic-bezier(0.2, 0, 0, 1), margin-top 320ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms ease;
+}
+
+.setup.open {
+    grid-template-rows: 1fr;
+    margin-top: 0;
+    opacity: 1;
+}
+
+.setup-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.setup.settled .setup-inner {
+    overflow: visible;
+}
+
+.btn-action {
+    width: 100%;
+    height: 56px;
+}
+
+.options {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* "backwards" so no transform lingers: it would trap open picker menus below later groups. */
+.setup.open .option-group {
+    animation: fadeSlideUp 360ms cubic-bezier(0.2, 0, 0, 1) backwards;
+}
+
+.setup.open .options > :nth-child(2) { animation-delay: 50ms; }
+.setup.open .options > :nth-child(3) { animation-delay: 100ms; }
+.setup.open .options > :nth-child(4) { animation-delay: 150ms; }
+.setup.open .options > :nth-child(5) { animation-delay: 200ms; }
+
+.option-group {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.option-group-label {
+    padding: 0 4px;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.option-row.option-row-quality {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+}
+
+.quality-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.quality-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    border-radius: var(--radius-pill);
+    background: var(--accent-glow);
+    color: #d8b4fe;
+    font-size: 15px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+
+.quality-value:empty {
+    display: none;
+}
+
+.quality-value {
+    color: var(--text-primary);
+}
+
+.option-row-quality .option-range {
+    flex: none;
+    width: 100%;
+}
+
+.quality-presets {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.quality-preset {
+    padding: 8px 6px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: var(--bg-chip);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform 120ms ease;
+}
+
+.quality-preset:hover:not(:disabled) {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.quality-preset.active {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+    color: var(--text-primary);
+}
+
+.quality-preset:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.quality-desc {
+    font-size: 15px;
+    color: var(--text-secondary);
+}
+
+.quality-detail {
+    margin-top: -8px;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.quality-detail:empty {
+    display: none;
+}
