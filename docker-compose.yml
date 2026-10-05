@@ -46,8 +46,8 @@ services:
       NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
       API_PORT: ${API_PORT:-3015}
       NGINX_MAX_BODY_SIZE: ${NGINX_MAX_BODY_SIZE:-510m}
-    expose:
-      - "80"
+    ports:
+      - "${NGINX_PORT:-5823}:80"
     depends_on:
       api:
         condition: service_healthy

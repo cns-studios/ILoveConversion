@@ -55,14 +55,14 @@ ILC operates as a distributed microservices architecture:
    ```bash
    docker compose up -d --build
    ```
-   The site is available on `http://localhost:8080` (`NGINX_PORT`). The port is published by `docker-compose.override.yml`, which Docker Compose loads automatically for local runs.
+   The site is available on `http://localhost:5823` (`NGINX_PORT`).
 
 ## Deploying on Coolify
 
 1. Create a new resource from this Git repository and choose the **Docker Compose** build pack.
 2. Set the Docker Compose location to `/docker-compose.yml`.
 3. In **Environment Variables**, fill in `POSTGRES_PASSWORD` and `ENCRYPTION_MASTER_KEY`. Coolify blocks the deployment until both are set. Every other variable has a default and can be changed there as well.
-4. Assign your domain to the `nginx` service (port 80). No ports are published on the host; Coolify's proxy routes traffic to nginx.
+4. Assign your domain to the `nginx` service (port 80). nginx is also published on the host at `NGINX_PORT` (5823); Coolify's proxy does not need it, so remove the value or block the port in the firewall if the site should only be reachable through the domain.
 5. Deploy.
 
 The `log-janitor` service reads Docker's log files from `/var/lib/docker/containers` on the host to delete entries older than `LOG_RETENTION_DAYS`. Set `DOCKER_CONTAINERS_DIR` if Docker stores them elsewhere.
@@ -85,7 +85,7 @@ The `log-janitor` service reads Docker's log files from `/var/lib/docker/contain
 | `TIMEOUT_*`, `RETRY_*` | see `.env.example` | Per-operation time limits (seconds) and retries |
 | `LOG_RETENTION_DAYS` | `7` | Days of container logs to keep |
 | `DOCKER_CONTAINERS_DIR` | `/var/lib/docker/containers` | Location of Docker's container logs on the host |
-| `NGINX_PORT` | `8080` | Local port (only used by `docker-compose.override.yml`) |
+| `NGINX_PORT` | `5823` | Host port nginx is published on |
 | `API_PORT` | `3015` | Internal API port |
 
 ## Data Processing Pipeline
