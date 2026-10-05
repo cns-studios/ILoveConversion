@@ -57,7 +57,6 @@
     const LOCAL_AUDIO_OUTPUTS = ['wav', 'aiff'];
     const LOCAL_CATEGORIES = { convert: ['image', 'audio'], compress: ['image'] };
 
-    const ICON_CLOUD = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z"/></svg>';
 
     const MIME_MAP = {
         jpeg: 'image/jpeg', jpg: 'image/jpeg', png: 'image/png',
@@ -812,18 +811,6 @@
         });
         const categories = CATEGORIES.filter((c) => byCategory[c]);
         const multi = categories.length > 1;
-
-        if (state.mode === 'local') {
-            const online = categories.filter((c) => !LOCAL_CATEGORIES[tool.mode].includes(c));
-            if (online.length) {
-                const note = document.createElement('p');
-                note.className = 'setup-note';
-                const names = online.map((c) => CATEGORY_TITLES[c]).join(' and ');
-                note.innerHTML = `${ICON_CLOUD}<span></span>`;
-                note.querySelector('span').textContent = `${names} files can't be ${tool.mode === 'convert' ? 'converted' : 'compressed'} on this device. You'll be asked before anything is uploaded.`;
-                opts.appendChild(note);
-            }
-        }
 
         categories.forEach((category) => {
             const exts = [...new Set(byCategory[category])];

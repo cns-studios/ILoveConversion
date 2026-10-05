@@ -549,26 +549,8 @@ textarea {
     gap: 24px;
 }
 
-.setup-note {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 12px 16px;
-    border: 1px dashed var(--border-dash);
-    border-radius: var(--radius-lg);
-    font-size: 14px;
-    color: var(--text-secondary);
-}
-
-.setup-note svg {
-    flex-shrink: 0;
-    margin-top: 2px;
-    color: var(--accent-soft);
-}
-
 /* "backwards" so no transform lingers: it would trap open picker menus below later groups. */
-.setup.open .option-group,
-.setup.open .setup-note {
+.setup.open .option-group {
     animation: fadeSlideUp 360ms cubic-bezier(0.2, 0, 0, 1) backwards;
 }
 
