@@ -187,7 +187,7 @@ func (w *worker) processJob(ctx context.Context, workerID int, jobID string) {
 	}
 	tmpOutput := filepath.Join(tmpDir, "output."+outExt)
 
-	log.Printf("[worker-%d] Processing %s: %s → .%s", workerID, job.Operation, job.OriginalName, outExt)
+	log.Printf("[worker-%d] Processing %s: .%s → .%s", workerID, job.Operation, inputExt, outExt)
 
 	timeout := w.cfg.TimeoutFor(job.Operation)
 	processCtx, processCancel := context.WithTimeout(ctx, timeout)
@@ -221,11 +221,11 @@ func (w *worker) processJob(ctx context.Context, workerID int, jobID string) {
 	if err := w.db.UpdateJobCompleted(ctx, jobID, outputFilename, outputSize); err != nil {
 		log.Printf("[worker-%d] ✗ update completed error: %v", workerID, err)
 	}
+	w.store.DeleteInput(jobID)
 
 	elapsed := time.Since(startTime).Round(time.Millisecond)
-	log.Printf("[worker-%d] ✓ Job %s done in %v: %s → %s (%s → %s)",
+	log.Printf("[worker-%d] ✓ Job %s done in %v (%s → %s)",
 		workerID, jobID, elapsed,
-		job.OriginalName, outputFilename,
 		formatBytes(job.InputSize), formatBytes(outputSize))
 }
 
@@ -274,6 +274,8 @@ func (w *worker) handleProcessError(ctx context.Context, workerID int, jobID, op
 	}
 }
 
+// failJob marks a job as permanently failed. Retries go through the queue instead,
+// so the input is no longer needed here.
 func (w *worker) failJob(ctx context.Context, jobID, msg string) {
 	if len(msg) > 1000 {
 		msg = msg[:1000] + "…"
@@ -281,6 +283,7 @@ func (w *worker) failJob(ctx context.Context, jobID, msg string) {
 	if err := w.db.UpdateJobFailed(ctx, jobID, msg); err != nil {
 		log.Printf("[worker] Failed to mark job %s as failed: %v", jobID, err)
 	}
+	w.store.DeleteInput(jobID)
 }
 
 func formatBytes(b int64) string {

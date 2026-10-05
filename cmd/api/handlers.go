@@ -161,8 +161,8 @@ func (a *app) handleCreateJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[upload] Job %s created: %s %s (%s)",
-		job.ID, operation, header.Filename, formatBytes(header.Size))
+	log.Printf("[upload] Job %s created: %s .%s (%s)",
+		job.ID, operation, inputExt, formatBytes(header.Size))
 
 	writeJSON(w, http.StatusCreated, job.ToResponse())
 }
