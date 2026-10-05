@@ -117,10 +117,10 @@
 
     async function init() {
         document.documentElement.classList.add('no-indicator-motion');
-        checkConsent();
+        migrateConsentCookie();
         await loadFormats();
         if (!ILCLocal.supportsWebp) LOCAL_IMAGE_OUTPUTS.splice(LOCAL_IMAGE_OUTPUTS.indexOf('webp'), 1);
-        state.mode = loadSetting('mode', 'local') === 'online' ? 'online' : 'local';
+        state.mode = loadSetting('mode', 'local') === 'online' && hasConsent() ? 'online' : 'local';
         state.tools.convert = createFileTool('convert', $('#panel-convert'));
         state.tools.compress = createFileTool('compress', $('#panel-compress'));
         setMode(state.mode);
@@ -131,12 +131,46 @@
         setTimeout(() => document.documentElement.classList.remove('page-enter'), 900);
     }
 
-    function checkConsent() {
-        const cookie = document.cookie.split('; ').find(row => row.startsWith('tos_and_policy_accepted='));
-        const isAccepted = cookie ? cookie.split('=')[1] === 'true' : false;
-        if (!isAccepted) {
-            $('#consent-modal').classList.remove('hidden');
+    /* ---------- Terms acceptance ---------- */
+
+    // Only online mode sends files anywhere, so acceptance is asked for when switching to it.
+    // The flag lives in localStorage on this device and is never sent to the server.
+    let consentGiven = false;
+    let consentRequest = null;
+
+    function hasConsent() {
+        return consentGiven || loadSetting('tosAccepted', '') === 'true';
+    }
+
+    // Earlier versions kept the acceptance in a cookie; carry it over and delete the cookie.
+    function migrateConsentCookie() {
+        const cookies = document.cookie.split('; ');
+        if (cookies.includes('tos_and_policy_accepted=true')) saveSetting('tosAccepted', 'true');
+        if (cookies.some((c) => c.startsWith('tos_and_policy_accepted='))) {
+            document.cookie = 'tos_and_policy_accepted=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax';
         }
+    }
+
+    function requireConsent(onAccept, onDecline) {
+        if (hasConsent()) {
+            onAccept();
+            return;
+        }
+        consentRequest = { onAccept, onDecline };
+        $('#consent-modal').classList.remove('hidden');
+        $('#btn-accept').focus();
+    }
+
+    function answerConsent(accepted) {
+        const request = consentRequest;
+        consentRequest = null;
+        $('#consent-modal').classList.add('hidden');
+        if (accepted) {
+            consentGiven = true;
+            saveSetting('tosAccepted', 'true');
+        }
+        const callback = request && (accepted ? request.onAccept : request.onDecline);
+        if (callback) callback();
     }
 
     async function loadFormats() {
@@ -167,7 +201,13 @@
         });
 
         $$('.mode-btn').forEach((btn) => {
-            btn.addEventListener('click', () => setMode(btn.dataset.mode, { persist: true }));
+            btn.addEventListener('click', () => {
+                if (btn.dataset.mode === 'online') {
+                    requireConsent(() => setMode('online', { persist: true }));
+                } else {
+                    setMode('local', { persist: true });
+                }
+            });
         });
 
         $('#btn-alert-close').addEventListener('click', () => {
@@ -185,15 +225,10 @@
         dom.qrWifiPassword.addEventListener('input', generateQrCode);
         dom.qrWifiHidden.addEventListener('change', generateQrCode);
 
-        $('#btn-accept').addEventListener('click', () => {
-            const date = new Date();
-            date.setFullYear(date.getFullYear() + 1);
-            document.cookie = `tos_and_policy_accepted=true; expires=${date.toUTCString()}; path=/; SameSite=Lax`;
-            $('#consent-modal').classList.add('hidden');
-        });
-
-        $('#btn-decline').addEventListener('click', () => {
-            window.location.href = 'https://google.com';
+        $('#btn-accept').addEventListener('click', () => answerConsent(true));
+        $('#btn-decline').addEventListener('click', () => answerConsent(false));
+        $('#consent-modal').addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') answerConsent(false);
         });
     }
 
@@ -1149,6 +1184,10 @@
     }
 
     function confirmCloud(tool) {
+        requireConsent(() => uploadNeedsCloud(tool));
+    }
+
+    function uploadNeedsCloud(tool) {
         tool.files.forEach((item) => {
             if (item.status !== 'needs-cloud') return;
             item.backend = 'online';
