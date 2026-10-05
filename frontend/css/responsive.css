@@ -1,0 +1,159 @@
+/* ---------- Responsive ---------- */
+
+@media (max-width: 768px) {
+    .site-header {
+        padding: 24px 16px 0;
+    }
+
+    .brand-logo {
+        width: 36px;
+        height: 36px;
+    }
+
+    .brand-name {
+        font-size: 32px;
+        line-height: 40px;
+    }
+
+    .mode-toggle {
+        gap: 6px;
+        padding: 6px;
+        border-radius: 11px;
+    }
+
+    .mode-btn {
+        padding: 5px 12px;
+        font-size: 17px;
+    }
+
+    .workspace {
+        gap: 40px;
+    }
+
+    .tool-tabs {
+        gap: 10px;
+    }
+
+    .tab {
+        gap: 8px;
+        padding: 12px 18px;
+        font-size: 17px;
+    }
+
+    .tab-icon {
+        width: 18px;
+        height: 18px;
+    }
+
+    .option-row {
+        min-height: 0;
+        padding: 16px;
+        gap: 16px;
+    }
+
+    .option-label,
+    .picker-trigger,
+    .option-range-value {
+        font-size: 17px;
+    }
+
+    .btn-chip .btn-chip-text {
+        display: none;
+    }
+
+    .btn-chip.btn-download {
+        padding: 12px;
+    }
+
+    .file-meta {
+        white-space: normal;
+    }
+
+    .site-footer {
+        gap: 12px 28px;
+    }
+
+    .site-footer a {
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .workspace {
+        padding-top: 48px;
+    }
+
+    .tool-tabs {
+        flex-wrap: nowrap;
+        gap: 8px;
+    }
+
+    .tab {
+        gap: 6px;
+        padding: 10px 14px;
+        font-size: 15px;
+    }
+
+    .tab-icon {
+        width: 16px;
+        height: 16px;
+    }
+
+    .option-row {
+        gap: 12px;
+    }
+
+    .option-label,
+    .picker-trigger,
+    .option-range-value {
+        font-size: 16px;
+    }
+
+    .picker-menu.is-grid .picker-options {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .field-row {
+        flex-direction: column;
+    }
+
+    .dropzone.is-cloud-prompt {
+        padding: 32px 20px;
+    }
+
+    .cloud-title {
+        font-size: 18px;
+    }
+
+    .cloud-actions {
+        width: 100%;
+        gap: 12px;
+    }
+
+    .cloud-actions button {
+        flex: 1;
+        min-width: 0;
+        font-size: 17px;
+    }
+
+    .modal-content {
+        padding: 28px 20px 20px;
+    }
+
+    .modal-actions {
+        flex-direction: column-reverse;
+        gap: 10px;
+    }
+
+    .modal-actions button {
+        flex: none;
+        width: 100%;
+        height: 52px;
+    }
+}
+
+@media (max-width: 350px) {
+    .tab-icon {
+        display: none;
+    }
+}
