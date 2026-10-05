@@ -6,6 +6,7 @@
 
     const state = {
         activeTab: 'convert',
+        mode: 'local',
         formats: null,
         tools: {},
         qrType: null,
@@ -48,6 +49,16 @@
         image: ['png', 'webp', 'avif', 'tiff', 'tif'],
         audio: ['flac', 'wav', 'aiff'],
     };
+
+    // What local mode can do on-device. Anything else is offered as an online upload instead.
+    const LOCAL_IMAGE_OUTPUTS = ['jpeg', 'png', 'webp', 'bmp', 'tiff', 'pdf'];
+    const LOCAL_IMAGE_COMPRESS = ['jpeg', 'jpg', 'png', 'webp'];
+    const LOCAL_AUDIO_INPUTS = ['mp3', 'wav', 'flac', 'ogg', 'opus', 'aac', 'm4a'];
+    const LOCAL_AUDIO_OUTPUTS = ['wav', 'aiff'];
+    const LOCAL_CATEGORIES = { convert: ['image', 'audio'], compress: ['image'] };
+
+    const ICON_LOCK = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+    const ICON_CLOUD = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z"/></svg>';
 
     const MIME_MAP = {
         jpeg: 'image/jpeg', jpg: 'image/jpeg', png: 'image/png',
@@ -108,8 +119,11 @@
     async function init() {
         checkConsent();
         await loadFormats();
+        if (!ILCLocal.supportsWebp) LOCAL_IMAGE_OUTPUTS.splice(LOCAL_IMAGE_OUTPUTS.indexOf('webp'), 1);
+        state.mode = loadSetting('mode', 'local') === 'online' ? 'online' : 'local';
         state.tools.convert = createFileTool('convert', $('#panel-convert'));
         state.tools.compress = createFileTool('compress', $('#panel-compress'));
+        setMode(state.mode, { initial: true });
         createQrTypePicker();
         bindEvents();
         switchQrType();
@@ -151,11 +165,7 @@
         });
 
         $$('.mode-btn').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                if (btn.dataset.mode === 'local') {
-                    showAlert('Local mode, where files are processed entirely in your browser, is not available yet. Online mode encrypts your files and deletes them after 24 hours.', 'Local mode');
-                }
-            });
+            btn.addEventListener('click', () => setMode(btn.dataset.mode, { persist: true }));
         });
 
         $('#btn-alert-close').addEventListener('click', () => {
@@ -200,6 +210,34 @@
         });
     }
 
+    /* ---------- Local / Online mode ---------- */
+
+    function setMode(mode, { persist = false, auto = false, initial = false } = {}) {
+        const changed = mode !== state.mode;
+        state.mode = mode;
+        if (persist) saveSetting('mode', mode);
+
+        $$('.mode-btn').forEach((btn) => {
+            const active = btn.dataset.mode === mode;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-pressed', active);
+        });
+        document.documentElement.dataset.mode = mode;
+
+        Object.values(state.tools).forEach((tool) => {
+            tool.refs.modeNote.innerHTML = mode === 'local'
+                ? `${ICON_LOCK}<span>Processed on your device. Nothing is uploaded.</span>`
+                : `${ICON_CLOUD}<span>Encrypted upload, deleted after 24 hours.</span>`;
+            // Rebuild settings so on-device / online markers match the new mode.
+            tool.setupSignature = null;
+            refresh(tool);
+        });
+
+        if (!initial && changed) {
+            document.dispatchEvent(new CustomEvent('ilc:modechange', { detail: { mode, auto } }));
+        }
+    }
+
     /* ---------- Picker (custom dropdown) ---------- */
 
     // groups: [{ label?, items: [{ value, label, display?, note? }] }]. Grid groups render as format chips.
@@ -241,6 +279,10 @@
                 option.innerHTML = `<span class="picker-option-text"><span class="picker-option-label"></span><span class="picker-option-note"></span></span>${ICON_CHECK}`;
                 option.querySelector('.picker-option-label').textContent = item.label;
                 option.querySelector('.picker-option-note').textContent = item.note || '';
+                if (item.cloud) {
+                    option.classList.add('is-cloud');
+                    option.title = 'Runs online';
+                }
                 option.addEventListener('click', () => {
                     select(item.value, true);
                     close(true);
@@ -265,7 +307,7 @@
                 i.el.setAttribute('aria-selected', selected);
             });
             trigger.querySelector('.picker-value').textContent = item.display || item.label;
-            trigger.querySelector('.picker-hint').textContent = grid ? item.group : '';
+            trigger.querySelector('.picker-hint').textContent = (grid ? item.group : '') + (item.cloud ? ' · online' : '');
             if (notify && onChange) onChange(item.value);
         }
 
@@ -403,8 +445,14 @@
         pdf: [['Screen', 25], ['Ebook', 50], ['Printer', 75], ['Prepress', 95]],
     };
 
-    function formatDetail(category, format, q) {
+    function formatDetail(category, format, q, local) {
         const name = (FORMAT_ALIASES[format] || format).toUpperCase();
+        if (local && category === 'image' && LOCAL_IMAGE_COMPRESS.includes(format)) {
+            if (format === 'png') {
+                return q >= 96 ? 'PNG re-encoded losslessly on this device' : `PNG with up to ${ILCCodecs.pngColors(q)} colors, made on this device`;
+            }
+            return `${name} quality ${q}, encoded on this device`;
+        }
         switch (category) {
             case 'image':
                 if (format === 'png') return `PNG palette quality ${Math.max(q - 20, 0)}–${q}`;
@@ -430,7 +478,7 @@
         }
     }
 
-    function qualityInfo(category, formats, q, lossless) {
+    function qualityInfo(category, formats, q, lossless, local) {
         if (category === 'pdf') {
             const preset = PDF_PRESETS.find((p) => q <= p.max);
             return { tier: preset.name, desc: preset.desc, detail: `Ghostscript “${preset.name.toLowerCase()}” preset, image quality ${q}` };
@@ -443,7 +491,7 @@
                 detail: '',
             };
         }
-        const details = [...new Set(formats.map((f) => formatDetail(category, f, q)))].filter(Boolean);
+        const details = [...new Set(formats.map((f) => formatDetail(category, f, q, local)))].filter(Boolean);
         return {
             tier: QUALITY_TIERS[idx].name,
             desc: TIER_DESCRIPTIONS[category][idx],
@@ -484,10 +532,12 @@
         refs.input.setAttribute('accept', exts.map((f) => MIME_MAP[f] || '.' + f)
             .concat(exts.map((f) => '.' + f)).join(','));
 
-        refs.dropzone.addEventListener('click', () => refs.input.click());
+        refs.dropzone.addEventListener('click', () => {
+            if (!tool.prompting) refs.input.click();
+        });
         refs.dropzone.addEventListener('dragover', (e) => {
             e.preventDefault();
-            refs.dropzone.classList.add('drag-over');
+            if (!tool.prompting) refs.dropzone.classList.add('drag-over');
         });
         refs.dropzone.addEventListener('dragleave', (e) => {
             if (!refs.dropzone.contains(e.relatedTarget)) {
@@ -497,7 +547,7 @@
         refs.dropzone.addEventListener('drop', (e) => {
             e.preventDefault();
             refs.dropzone.classList.remove('drag-over');
-            addFiles(tool, e.dataTransfer.files);
+            if (!tool.prompting) addFiles(tool, e.dataTransfer.files);
         });
         refs.input.addEventListener('change', () => {
             addFiles(tool, refs.input.files);
@@ -511,6 +561,14 @@
         });
         refs.action.addEventListener('click', () => startPending(tool));
         refs.clear.addEventListener('click', () => clearAll(tool));
+        refs.cloudConfirm.addEventListener('click', (e) => {
+            e.stopPropagation();
+            confirmCloud(tool);
+        });
+        refs.cloudCancel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            cancelCloud(tool);
+        });
 
         return tool;
     }
@@ -585,6 +643,18 @@
         const categories = CATEGORIES.filter((c) => byCategory[c]);
         const multi = categories.length > 1;
 
+        if (state.mode === 'local') {
+            const online = categories.filter((c) => !LOCAL_CATEGORIES[tool.mode].includes(c));
+            if (online.length) {
+                const note = document.createElement('p');
+                note.className = 'setup-note';
+                const names = online.map((c) => CATEGORY_TITLES[c]).join(' and ');
+                note.innerHTML = `${ICON_CLOUD}<span></span>`;
+                note.querySelector('span').textContent = `${names} files can't be ${tool.mode === 'convert' ? 'converted' : 'compressed'} on this device. You'll be asked before anything is uploaded.`;
+                opts.appendChild(note);
+            }
+        }
+
         categories.forEach((category) => {
             const exts = [...new Set(byCategory[category])];
             const group = document.createElement('div');
@@ -635,7 +705,63 @@
             value: `${operation}:${f}`,
             label: f.toUpperCase(),
             display: f.toUpperCase() + suffix,
+            cloud: state.mode === 'local' && !isLocalTarget(operation, f),
         }));
+    }
+
+    function isLocalTarget(operation, format) {
+        if (operation === 'image_convert') return LOCAL_IMAGE_OUTPUTS.includes(format);
+        if (operation === 'audio_convert') return LOCAL_AUDIO_OUTPUTS.includes(format);
+        return false;
+    }
+
+    // Decides whether a job can run on this device. Returns { task } or { reason }.
+    function localPlan(item) {
+        const { category, ext, file, operation, params } = item;
+        const limit = ILCLocal.LIMITS[category];
+        const target = (params.output_format || '').toUpperCase();
+
+        switch (operation) {
+            case 'image_convert':
+                if (!LOCAL_IMAGE_OUTPUTS.includes(params.output_format)) return { reason: `Creating ${target} files needs the server.` };
+                break;
+            case 'image_compress':
+                if (!LOCAL_IMAGE_COMPRESS.includes(ext)) return { reason: `Compressing ${ext.toUpperCase()} files needs the server.` };
+                if (params.lossless && ext === 'webp') return { reason: 'Lossless WEBP compression needs the server.' };
+                break;
+            case 'image_remove_bg':
+                return { reason: 'Background removal uses an AI model on the server.' };
+            case 'audio_convert':
+                if (!LOCAL_AUDIO_OUTPUTS.includes(params.output_format)) return { reason: `Creating ${target} files needs the server. WAV and AIFF work on this device.` };
+                if (!LOCAL_AUDIO_INPUTS.includes(ext)) return { reason: `${ext.toUpperCase()} files can't be decoded in the browser.` };
+                break;
+            case 'audio_compress':
+                return { reason: 'Audio compression needs the server.' };
+            case 'video_compress':
+                return { reason: 'Video processing needs the server.' };
+            case 'pdf_compress':
+                return { reason: 'PDF compression needs the server.' };
+            default:
+                return { reason: 'This needs the server.' };
+        }
+
+        if (limit && file.size > limit.bytes) {
+            return { reason: `Larger than the ${formatBytes(limit.bytes)} limit for on-device processing.` };
+        }
+
+        if (category === 'image') {
+            const isCompress = operation === 'image_compress';
+            return {
+                task: {
+                    kind: 'image',
+                    op: isCompress ? 'compress' : 'convert',
+                    format: isCompress ? (FORMAT_ALIASES[ext] || ext) : params.output_format,
+                    quality: isCompress ? params.quality : 92,
+                    lossless: !!params.lossless,
+                },
+            };
+        }
+        return { task: { kind: 'audio', format: params.output_format } };
     }
 
     function compressRows(tool, category, exts) {
@@ -750,7 +876,7 @@
 
         function update() {
             const q = parseInt(range.value, 10);
-            const info = qualityInfo(category, getFormats(), q, lossless);
+            const info = qualityInfo(category, getFormats(), q, lossless, state.mode === 'local');
             range.style.setProperty('--fill', ((q - 1) / 99 * 100) + '%');
             $('.quality-tier', row).textContent = info.tier;
             $('.quality-value', row).textContent = lossless ? '' : q;
@@ -839,20 +965,97 @@
         }
     }
 
+    // In local mode a file only reaches the server after the user confirms the cloud prompt.
     function startPending(tool) {
         pendingFiles(tool).forEach((item) => {
             const job = jobFor(tool, item);
             if (job.error) {
                 setError(item, job.error);
+                renderFile(item);
+                return;
+            }
+            item.operation = job.operation;
+            item.params = job.params;
+            if (state.mode === 'local') {
+                const plan = localPlan(item);
+                if (plan.task) {
+                    item.backend = 'local';
+                    item.task = plan.task;
+                    item.status = 'waiting';
+                } else {
+                    needsCloud(item, plan.reason);
+                }
             } else {
-                item.operation = job.operation;
-                item.params = job.params;
+                item.backend = 'online';
                 item.status = 'waiting';
             }
             renderFile(item);
         });
         refresh(tool);
+        updateCloudPrompt(tool);
         pump(tool);
+    }
+
+    function needsCloud(item, reason) {
+        item.status = 'needs-cloud';
+        item.cloudReason = reason;
+    }
+
+    function updateCloudPrompt(tool) {
+        const waiting = tool.files.filter((f) => f.status === 'needs-cloud');
+        const show = waiting.length > 0;
+        const { refs } = tool;
+
+        if (show) {
+            refs.cloudTitle.innerHTML = '';
+            refs.cloudTitle.append(
+                waiting.length === 1 ? 'File cannot be processed locally.' : `${waiting.length} files cannot be processed locally.`,
+                document.createElement('br'),
+                'Upload to cloud?'
+            );
+            refs.cloudReasons.replaceChildren(...waiting.slice(0, 4).map((f) => {
+                const li = document.createElement('li');
+                const name = document.createElement('strong');
+                name.textContent = f.file.name;
+                li.append(name, ` ${f.cloudReason}`);
+                return li;
+            }));
+            if (waiting.length > 4) {
+                const li = document.createElement('li');
+                li.textContent = `and ${waiting.length - 4} more`;
+                refs.cloudReasons.appendChild(li);
+            }
+        }
+
+        if (show === !!tool.prompting) return;
+        tool.prompting = show;
+        refs.dropzone.classList.toggle('is-cloud-prompt', show);
+        refs.dropDefault.hidden = show;
+        refs.cloud.hidden = !show;
+        if (show) refs.cloudConfirm.focus({ preventScroll: true });
+    }
+
+    function confirmCloud(tool) {
+        tool.files.forEach((item) => {
+            if (item.status !== 'needs-cloud') return;
+            item.backend = 'online';
+            item.status = 'waiting';
+            renderFile(item);
+        });
+        setMode('online', { auto: true });
+        updateCloudPrompt(tool);
+        pump(tool);
+    }
+
+    // Puts the files back to "Ready" so another target can be picked, without uploading anything.
+    function cancelCloud(tool) {
+        tool.files.forEach((item) => {
+            if (item.status !== 'needs-cloud') return;
+            item.status = 'ready';
+            renderFile(item);
+        });
+        updateCloudPrompt(tool);
+        refresh(tool);
     }
 
     function addFileRow(tool, file, ext, category) {
@@ -897,10 +1100,9 @@
     }
 
     function disposeFile(item) {
-        if (item.xhr) {
-            item.removed = true;
-            item.xhr.abort();
-        }
+        item.removed = true;
+        if (item.objectUrl) URL.revokeObjectURL(item.objectUrl);
+        if (item.xhr) item.xhr.abort();
         stopPolling(item);
         if (item.jobId) {
             fetch(`/api/jobs/${item.jobId}`, { method: 'DELETE' }).catch(() => {});
@@ -917,6 +1119,7 @@
             pump(tool);
         }
         refresh(tool);
+        updateCloudPrompt(tool);
     }
 
     function clearAll(tool) {
@@ -925,13 +1128,47 @@
         tool.uploading = false;
         tool.refs.list.innerHTML = '';
         refresh(tool);
+        updateCloudPrompt(tool);
     }
 
-    // Upload one file at a time; processing on the server runs in parallel.
+    // One upload and one on-device job at a time; server-side processing runs in parallel.
     function pump(tool) {
-        if (tool.uploading) return;
-        const next = tool.files.find((f) => f.status === 'waiting');
-        if (next) upload(tool, next);
+        if (!tool.uploading) {
+            const next = tool.files.find((f) => f.status === 'waiting' && f.backend === 'online');
+            if (next) upload(tool, next);
+        }
+        if (!tool.localBusy) {
+            const next = tool.files.find((f) => f.status === 'waiting' && f.backend === 'local');
+            if (next) runLocal(tool, next);
+        }
+    }
+
+    async function runLocal(tool, item) {
+        tool.localBusy = true;
+        item.status = 'processing';
+        renderFile(item);
+        try {
+            const result = item.task.kind === 'image'
+                ? await ILCLocal.image(item.file, item.task)
+                : await ILCLocal.audio(item.file, item.task);
+            if (item.removed) return;
+            item.result = result;
+            item.status = 'done';
+        } catch (err) {
+            if (item.removed) return;
+            if (['decode', 'too-large', 'encode', 'unsupported'].includes(err.code)) {
+                needsCloud(item, err.message);
+            } else {
+                setError(item, `On-device processing failed: ${err.message}`);
+            }
+        } finally {
+            tool.localBusy = false;
+            if (!item.removed) {
+                renderFile(item);
+                updateCloudPrompt(tool);
+            }
+            pump(tool);
+        }
     }
 
     function upload(tool, item) {
@@ -1062,6 +1299,7 @@
         const busy = ['waiting', 'uploading', 'queued', 'processing'].includes(item.status);
 
         row.classList.toggle('is-ready', item.status === 'ready');
+        row.classList.toggle('is-cloud', item.status === 'needs-cloud');
         row.classList.toggle('is-error', item.status === 'error');
         row.classList.toggle('is-uploading', item.status === 'waiting' || item.status === 'uploading');
         row.classList.toggle('is-processing', item.status === 'queued' || item.status === 'processing');
@@ -1069,7 +1307,7 @@
         row.style.setProperty('--progress', item.status === 'uploading' ? item.progress : 0);
         row.setAttribute('aria-busy', busy);
 
-        download.classList.toggle('hidden', item.status === 'error');
+        download.classList.toggle('hidden', item.status === 'error' || item.status === 'needs-cloud');
         download.classList.toggle('is-disabled', item.status !== 'done');
         download.setAttribute('aria-disabled', item.status !== 'done');
 
@@ -1080,6 +1318,9 @@
             case 'waiting':
                 meta.textContent = `${size} · Waiting…`;
                 break;
+            case 'needs-cloud':
+                meta.textContent = `${size} · Needs online processing`;
+                break;
             case 'uploading':
                 meta.textContent = `${size} · Uploading ${item.progress}%`;
                 break;
@@ -1087,7 +1328,9 @@
                 meta.textContent = `${size} · In queue…`;
                 break;
             case 'processing':
-                meta.textContent = `${size} · Processing…`;
+                meta.textContent = item.backend === 'local'
+                    ? `${size} · Processing on this device…`
+                    : `${size} · Processing…`;
                 break;
             case 'error':
                 meta.textContent = item.error;
@@ -1099,6 +1342,10 @@
     }
 
     function renderDone(item) {
+        if (item.backend === 'local') {
+            renderLocalDone(item);
+            return;
+        }
         const { meta, download } = item.el;
         const job = item.job || {};
         const inSize = job.input_size || item.file.size;
@@ -1125,6 +1372,35 @@
             : '';
         download.href = `/api/jobs/${item.jobId}/download`;
         download.setAttribute('download', baseName + '-iloveconversion' + outExt);
+    }
+
+    function renderLocalDone(item) {
+        const { meta, download } = item.el;
+        const { blob, kept } = item.result;
+        const inSize = item.file.size;
+
+        meta.textContent = kept
+            ? `${formatBytes(inSize)} · Already optimized, kept original`
+            : `${formatBytes(inSize)} → ${formatBytes(blob.size)}`;
+        if (!kept && item.task.kind === 'image' && item.task.op === 'compress') {
+            const savings = (1 - blob.size / inSize) * 100;
+            const note = document.createElement('span');
+            note.textContent = ` · ${savings.toFixed(1)}% smaller`;
+            note.className = 'is-success';
+            meta.appendChild(note);
+        }
+        const badge = document.createElement('span');
+        badge.className = 'file-local';
+        badge.textContent = ' · on device';
+        meta.appendChild(badge);
+
+        const origName = item.file.name;
+        const baseName = origName.substring(0, origName.lastIndexOf('.')) || origName;
+        const format = item.task.format === 'jpeg' ? 'jpg' : item.task.format;
+        const ext = kept ? item.ext : format;
+        if (!item.objectUrl) item.objectUrl = URL.createObjectURL(blob);
+        download.href = item.objectUrl;
+        download.setAttribute('download', `${baseName}-iloveconversion.${ext}`);
     }
 
     /* ---------- Helpers ---------- */
