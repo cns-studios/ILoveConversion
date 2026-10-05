@@ -20,10 +20,10 @@ func New(basePath string) (*Storage, error) {
 		basePath:   basePath,
 		inputsDir:  filepath.Join(basePath, "inputs"),
 		outputsDir: filepath.Join(basePath, "outputs"),
-		partsDir:   filepath.Join(basePath, "uploads"),
+		partsDir:   filepath.Join(basePath, "inputs", "parts"),
 	}
 
-	for _, dir := range []string{s.inputsDir, s.outputsDir, s.partsDir} {
+	for _, dir := range []string{s.inputsDir, s.outputsDir} {
 		if err := os.MkdirAll(dir, 0777); err != nil {
 			return nil, fmt.Errorf("create storage dir %s: %w", dir, err)
 		}
