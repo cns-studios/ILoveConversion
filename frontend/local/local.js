@@ -33,7 +33,7 @@
 
     function getWorker() {
         if (worker) return worker;
-        worker = new Worker('/local-worker.js');
+        worker = new Worker('/local/worker.js');
         worker.onmessage = (event) => {
             const { id, blob, kept, error } = event.data;
             const job = jobs.get(id);
