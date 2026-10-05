@@ -22,9 +22,10 @@ All files are **encrypted at rest** using AES-256-GCM with unique keys derived f
   - Optimized for the web using H.264 (MP4/MKV) and VP9 (WebM).
   - Advanced CRF-based bitrate management and metadata stripping.
 - **Privacy First**:
-  - Every file is encrypted immediately upon arrival.
-  - Automatic 24-hour retention policy with secure deletion.
-  - Session-based isolation to prevent cross-user data leakage.
+  - Local mode (default) processes images and audio in the browser; nothing is uploaded.
+  - Every uploaded file is encrypted immediately upon arrival.
+  - Inputs are deleted as soon as a job finishes; results and job records after 1 hour.
+  - Uploads are limited to 500 MB by default.
 
 ## Architecture
 
@@ -47,13 +48,45 @@ ILC operates as a distributed microservices architecture:
 2. **Environment Setup**:
    ```bash
    cp .env.example .env
-   # Ensure ENCRYPTION_MASTER_KEY is set to a 32-character hex string
    ```
+   Set `POSTGRES_PASSWORD` and `ENCRYPTION_MASTER_KEY` (64 hex characters, `openssl rand -hex 32`). Both are required.
 
-3. **Deployment**:
+3. **Run**:
    ```bash
-   docker-compose up -d --build
+   docker compose up -d --build
    ```
+   The site is available on `http://localhost:8080` (`NGINX_PORT`). The port is published by `docker-compose.override.yml`, which Docker Compose loads automatically for local runs.
+
+## Deploying on Coolify
+
+1. Create a new resource from this Git repository and choose the **Docker Compose** build pack.
+2. Set the Docker Compose location to `/docker-compose.yml`.
+3. In **Environment Variables**, fill in `POSTGRES_PASSWORD` and `ENCRYPTION_MASTER_KEY`. Coolify blocks the deployment until both are set. Every other variable has a default and can be changed there as well.
+4. Assign your domain to the `nginx` service (port 80). No ports are published on the host; Coolify's proxy routes traffic to nginx.
+5. Deploy.
+
+The `log-janitor` service reads Docker's log files from `/var/lib/docker/containers` on the host to delete entries older than `LOG_RETENTION_DAYS`. Set `DOCKER_CONTAINERS_DIR` if Docker stores them elsewhere.
+
+## Configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `POSTGRES_PASSWORD` | required | Database password |
+| `ENCRYPTION_MASTER_KEY` | required | 64 hex characters; every job key is derived from it |
+| `POSTGRES_USER`, `POSTGRES_DB` | `ilc` | Database user and name |
+| `MAX_FILE_SIZE` | `524288000` | Upload limit in bytes (500 MB) |
+| `NGINX_MAX_BODY_SIZE` | `510m` | nginx request limit; keep it about 10 MB above `MAX_FILE_SIZE` |
+| `FILE_RETENTION_HOURS` | `1` | Hours until results and job records are deleted |
+| `CLEANUP_INTERVAL_MINUTES` | `5` | How often expired jobs are removed |
+| `RATE_LIMIT_PER_HOUR` | `600` | Uploads per IP and hour |
+| `FLAG_THRESHOLD` | `5000` | Uploads per IP and hour after which the IP is blocked |
+| `WORKER_CONCURRENCY` | `4` | Jobs processed in parallel |
+| `TMPFS_SIZE`, `API_TMPFS_SIZE` | `1g` | RAM-backed scratch space for the worker and the API |
+| `TIMEOUT_*`, `RETRY_*` | see `.env.example` | Per-operation time limits (seconds) and retries |
+| `LOG_RETENTION_DAYS` | `7` | Days of container logs to keep |
+| `DOCKER_CONTAINERS_DIR` | `/var/lib/docker/containers` | Location of Docker's container logs on the host |
+| `NGINX_PORT` | `8080` | Local port (only used by `docker-compose.override.yml`) |
+| `API_PORT` | `3015` | Internal API port |
 
 ## Data Processing Pipeline
 
@@ -83,4 +116,4 @@ The resulting file in the RAM-disk is:
 - **Cleaned Up**: The RAM-disk sandbox is immediately wiped.
 
 ### 5. Automated Cleanup
-A background task runs every 15 minutes to identify jobs older than the configured `FILE_RETENTION_HOURS` (default 24h). It removes the database records and triggers a secure deletion of both input and output encrypted files from the storage volume.
+Encrypted inputs are deleted as soon as a job completes or fails. A background task runs every `CLEANUP_INTERVAL_MINUTES` (default 5) and removes jobs older than `FILE_RETENTION_HOURS` (default 1) together with their output files. Rate-limit records of IP addresses are deleted after 24 hours without a request.

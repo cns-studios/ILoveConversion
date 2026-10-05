@@ -85,9 +85,9 @@ func Load() (*Config, error) {
 
 		DBHost:     envStr("POSTGRES_HOST", "postgres"),
 		DBPort:     envInt("POSTGRES_PORT", 5432),
-		DBUser:     envStr("POSTGRES_USER", "fileforge"),
-		DBPassword: envStr("POSTGRES_PASSWORD", "changeme"),
-		DBName:     envStr("POSTGRES_DB", "fileforge"),
+		DBUser:     envStr("POSTGRES_USER", "ilc"),
+		DBPassword: envStr("POSTGRES_PASSWORD", ""),
+		DBName:     envStr("POSTGRES_DB", "ilc"),
 
 		RedisHost:     envStr("REDIS_HOST", "redis"),
 		RedisPort:     envInt("REDIS_PORT", 6379),
