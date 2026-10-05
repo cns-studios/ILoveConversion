@@ -1,3 +1,14 @@
+x-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Every service below is labelled for the log-janitor, which deletes log entries older
+# than LOG_RETENTION_DAYS (default 7). Docker's max-size/max-file only limit size.
+x-log-retention: &log-retention
+  ilc.log-retention: "true"
+
 services:
 
   nginx:
@@ -13,11 +24,8 @@ services:
       api:
         condition: service_started
     restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+    logging: *logging
+    labels: *log-retention
     networks:
       - ilc
 
@@ -34,11 +42,8 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+    logging: *logging
+    labels: *log-retention
     networks:
       - ilc
 
@@ -59,11 +64,8 @@ services:
       rembg:
         condition: service_healthy
     restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+    logging: *logging
+    labels: *log-retention
     networks:
       - ilc
 
@@ -78,11 +80,8 @@ services:
       retries: 15
       start_period: 60s
     restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "2"
+    logging: *logging
+    labels: *log-retention
     networks:
       - ilc
 
@@ -95,6 +94,8 @@ services:
       --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
+    logging: *logging
+    labels: *log-retention
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -113,6 +114,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    logging: *logging
+    labels: *log-retention
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -121,6 +124,19 @@ services:
     restart: unless-stopped
     networks:
       - ilc
+
+  log-janitor:
+    image: alpine:3.20
+    command: ["sh", "/janitor.sh"]
+    environment:
+      - LOG_RETENTION_DAYS=${LOG_RETENTION_DAYS:-7}
+    volumes:
+      - ./docker/log-janitor.sh:/janitor.sh:ro
+      # Docker's json-file logs live here on a standard Linux host.
+      - ${DOCKER_CONTAINERS_DIR:-/var/lib/docker/containers}:/containers
+    network_mode: none
+    restart: unless-stopped
+    logging: *logging
 
 volumes:
   file_storage:
