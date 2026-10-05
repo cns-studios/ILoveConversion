@@ -35,3 +35,4 @@ Made by: CNS Studios (contact@cns-studios.com)
 - [App](https://ilc.cns-studios.com/): convert, compress and create tools
 - [Privacy Policy](https://ilc.cns-studios.com/privacy.html): data handling, GDPR information
 - [Terms of Service](https://ilc.cns-studios.com/terms.html)
+- [How ILC handles your data](https://ilc.cns-studios.com/data-processing.html): plain-language summary of storage, deletion and who can see what

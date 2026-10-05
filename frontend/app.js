@@ -142,10 +142,10 @@
         return consentGiven || readAcceptance();
     }
 
-    // Earlier versions kept the acceptance in a cookie; carry it over and delete the cookie.
+    // Earlier versions kept the acceptance of the old terms in a cookie. That does not cover
+    // the current version, so the cookie is only deletd.
     function migrateConsentCookie() {
         const cookies = document.cookie.split('; ');
-        if (cookies.includes('tos_and_policy_accepted=true')) storeAcceptance();
         if (cookies.some((c) => c.startsWith('tos_and_policy_accepted='))) {
             document.cookie = 'tos_and_policy_accepted=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax';
         }
@@ -520,6 +520,9 @@
     // stored on the device, as the privacy policy (section 8) says.
     const settings = new Map();
     const ACCEPTANCE_KEY = 'ilc.tosAccepted';
+    // Version of the Terms and Privacy Policy being accepted. Raise it when a change needs
+    // fresh acceptance; online mode then asks again.
+    const TERMS_VERSION = '2.1';
 
     function loadSetting(key, fallback) {
         return settings.has(key) ? settings.get(key) : fallback;
@@ -531,7 +534,7 @@
 
     function readAcceptance() {
         try {
-            return localStorage.getItem(ACCEPTANCE_KEY) === 'true';
+            return localStorage.getItem(ACCEPTANCE_KEY) === TERMS_VERSION;
         } catch (e) {
             return false;
         }
@@ -539,7 +542,7 @@
 
     function storeAcceptance() {
         try {
-            localStorage.setItem(ACCEPTANCE_KEY, 'true');
+            localStorage.setItem(ACCEPTANCE_KEY, TERMS_VERSION);
         } catch (e) {
         }
     }
@@ -622,7 +625,7 @@
         }
         switch (category) {
             case 'image':
-                if (format === 'png') return `PNG palette quality ${Math.max(q - 20, 0)}–${q}`;
+                if (format === 'png') return `PNG palette quality ${Math.max(q - 20, 0)}-${q}`;
                 if (format === 'gif' || format === 'bmp') return `${name} re-encoded (quality has little effect)`;
                 return `${name} quality ${q}`;
             case 'audio':
