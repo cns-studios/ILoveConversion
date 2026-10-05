@@ -1716,7 +1716,7 @@ button.search-result-item:hover {
     animation: fadeSlideUp 0.5s ease forwards;
 }
 
-.legal-section h3 {
+.legal-section h2 {
     font-size: 1.1rem;
     font-weight: 600;
     color: var(--text-primary);
@@ -1807,6 +1807,64 @@ button.search-result-item:hover {
     font-size: 0.9rem;
     color: var(--text-secondary);
     border-bottom: 1px solid var(--border-subtle);
+}
+
+.legal-table {
+    margin: 24px 0;
+}
+
+.legal-table table {
+    margin: 0;
+}
+
+.legal-section td {
+    vertical-align: top;
+    line-height: 1.5;
+}
+
+/* On narrow screens each row becomes a card with its column names inline. */
+@media (max-width: 600px) {
+    .legal-table thead {
+        display: none;
+    }
+
+    .legal-table tr,
+    .legal-table td {
+        display: block;
+    }
+
+    .legal-table tr {
+        padding: 6px 0;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .legal-table tr:last-child {
+        border-bottom: none;
+    }
+
+    .legal-table td {
+        padding: 6px 16px;
+        border-bottom: none;
+    }
+
+    .legal-table td::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 2px;
+    }
+}
+
+/* Template values that still need to be filled in. */
+mark.placeholder {
+    background: var(--accent-soft);
+    color: var(--bg-primary);
+    padding: 0 4px;
+    border-radius: 4px;
 }
 
 .legal-section tr:last-child td {

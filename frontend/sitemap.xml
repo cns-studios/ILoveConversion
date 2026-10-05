@@ -19,6 +19,12 @@
         <priority>0.3</priority>
     </url>
     <url>
+        <loc>https://ilc.cns-studios.com/data-processing.html</loc>
+        <lastmod>2026-10-05</lastmod>
+        <changefreq>yearly</changefreq>
+        <priority>0.3</priority>
+    </url>
+    <url>
         <loc>https://ilc.cns-studios.com/llms.txt</loc>
         <lastmod>2026-10-05</lastmod>
         <changefreq>monthly</changefreq>

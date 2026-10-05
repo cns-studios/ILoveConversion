@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How ILC handles your data · ILC</title>
+    <meta name="description" content="A plain-language summary of what happens to your files in ILC: what is stored, for how long, and who can see it.">
+    <meta name="robots" content="index, follow">
+    <meta name="color-scheme" content="dark">
+    <link rel="canonical" href="https://ilc.cns-studios.com/data-processing.html">
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="ILC · ILoveConversion">
+    <meta property="og:url" content="https://ilc.cns-studios.com/data-processing.html">
+    <meta property="og:title" content="How ILC handles your data · ILC">
+    <meta property="og:description" content="A plain-language summary of what happens to your files in ILC: what is stored, for how long, and who can see it.">
+    <meta property="og:image" content="https://ilc.cns-studios.com/og-image.jpg">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="stylesheet" href="/style.css">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/favicon-192.png" type="image/png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <meta name="theme-color" content="#09090b">
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+</head>
+<body>
+    <div id="app">
+        <header class="site-header">
+            <a href="/" class="brand" aria-label="ILoveConversion home">
+                <img class="brand-logo" src="/logo.png" alt="" width="46" height="46">
+                <span class="brand-name">ILC</span>
+            </a>
+        </header>
+        <main class="legal-content">
+            <h1 class="legal-title">How ILC handles your data</h1>
+
+            <p class="legal-updated">Version 2.1 · Oct 5th, 2026 · This is a summary. The legally binding details are in the <a href="/privacy.html">Privacy Policy</a>.</p>
+
+            <section class="legal-section" id="two-modes">
+                <h2>Two modes</h2>
+                <p><strong>Local mode (recommended).</strong> Everything happens in your browser. Your files never leave your device, and nothing about them is sent to our server. If you can use local mode, use it.</p>
+                <p><strong>Online mode.</strong> Your file is uploaded to our server, converted there, and sent back to you. It is for conversions that your browser cannot do. Here is exactly what happens.</p>
+            </section>
+
+            <section class="legal-section" id="what-happens-to-your-file-in-online-mode">
+                <h2>What happens to your file in online mode</h2>
+                <ol>
+                <li><strong>Upload.</strong> Your browser sends the file to our site. It travels through Cloudflare, a US company that protects the site and can technically see the traffic passing through (see "Who can see what" below).</li>
+                <li><strong>Encryption.</strong> Our server encrypts the file as it arrives and saves it on its disk. Each file has its own key.</li>
+                <li><strong>Processing.</strong> A worker program decrypts the file in the server's memory (RAM, not disk), converts it with standard tools (ffmpeg, Ghostscript, image tools, and our own background-removal component), and encrypts the result.</li>
+                <li><strong>Cleanup of the original.</strong> As soon as the conversion has finished or failed, your uploaded file and the temporary working copy are deleted.</li>
+                <li><strong>Download.</strong> You download the result. The server decrypts it on the fly while sending it to you.</li>
+                <li><strong>Automatic deletion.</strong> The result and its job record are deleted within about 1 hour after the conversion (the cleanup runs every 10 minutes). You can delete them yourself earlier.</li>
+                </ol>
+            </section>
+
+            <section class="legal-section" id="what-is-stored-and-for-how-long">
+                <h2>What is stored, and for how long</h2>
+                <div class="legal-table"><table>
+                <thead><tr>
+                <th scope="col">What</th>
+                <th scope="col">Why</th>
+                <th scope="col">How long</th>
+                </tr></thead><tbody>
+                <tr><td data-label="What">Your uploaded file</td><td data-label="Why">To convert it</td><td data-label="How long">Until the conversion is done</td></tr>
+                <tr><td data-label="What">The converted file</td><td data-label="Why">So you can download it</td><td data-label="How long">Up to about 1 hour</td></tr>
+                <tr><td data-label="What">Job details: filename, file size, chosen settings, timestamps, status</td><td data-label="Why">To run the job and fix errors</td><td data-label="How long">Up to about 1 hour</td></tr>
+                <tr><td data-label="What">Your IP address with request counts</td><td data-label="Why">To stop overload and abuse (rate limit)</td><td data-label="How long">24 hours after your last request</td></tr>
+                <tr><td data-label="What">Server logs: IP address, time, page requested, result code</td><td data-label="Why">Security and error fixing</td><td data-label="How long">At most 7 days</td></tr>
+                </tbody></table></div>
+                <p>We keep no accounts, no profiles, no advertising data, and no backups of your files.</p>
+            </section>
+
+            <section class="legal-section" id="who-can-see-what">
+                <h2>Who can see what</h2>
+                <ul>
+                <li><strong>You.</strong> Your files, always.</li>
+                <li><strong>Cloudflare.</strong> Because all traffic goes through Cloudflare, it can technically see traffic in transit, including uploaded files and your IP address. It is bound by a data processing agreement. In local mode, it only sees that you loaded the page.</li>
+                <li><strong>Us (the operators).</strong> Technically we can access our own server and could decrypt files. We do not look at your files. We would only do so to fix a technical fault or to follow up a specific report of illegal content.</li>
+                <li><strong>Nobody else.</strong> We do not share, sell, or analyse your data, and we do not use it to train any system. We only hand data to authorities when the law requires it.</li>
+                </ul>
+            </section>
+
+            <section class="legal-section" id="what-the-encryption-does-and-does-not-do">
+                <h2>What the encryption does and does not do</h2>
+                <p>Encryption on disk protects against a stolen or discarded disk. It does <strong>not</strong> protect against someone who gets full access to the running server, because the master key lives on that server. Deletion removes files in the normal way; we cannot promise that traces are physically wiped from the storage hardware.</p>
+            </section>
+
+            <section class="legal-section" id="cookies-and-tracking">
+                <h2>Cookies and tracking</h2>
+                <p>We set no cookies and use no analytics or advertising scripts. Your browser stores your acceptance of the terms locally. Cloudflare may set security cookies and provides basic traffic statistics to us.</p>
+            </section>
+
+            <section class="legal-section" id="where-is-the-data">
+                <h2>Where is the data?</h2>
+                <p>Our own servers in Germany. The only exception is Cloudflare, whose network spans the world and which is based in the USA. Transfers rely on Cloudflare's certification under the EU-US Data Privacy Framework, with standard contractual clauses as a fallback.</p>
+            </section>
+
+            <section class="legal-section" id="your-rights-and-control">
+                <h2>Your rights and control</h2>
+                <p>You can delete your files in online mode at any time. You can ask us for access to, correction of, or deletion of your data, object to the processing of your IP address, and complain to a data protection authority. To find your data, we may need your job ID or your IP address. Contact: legal@cns-studios.com.</p>
+            </section>
+
+            <section class="legal-section" id="please-note">
+                <h2>Please note</h2>
+                <p>Don't upload files you have no right to process. Files that contain other people's personal data are your responsibility. If in doubt, use local mode.</p>
+            </section>
+        </main>
+        <footer class="site-footer">
+            <a href="/terms.html">Terms of Service</a>
+            <a href="/privacy.html">Privacy Policy</a>
+            <a href="/data-processing.html">Data Processing</a>
+        </footer>
+    </div>
+</body>
+</html>
