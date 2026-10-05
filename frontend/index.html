@@ -51,13 +51,8 @@
 
             <section id="panel-create" class="tool-panel hidden" data-panel="create" role="tabpanel">
                 <div class="option-row">
-                    <label class="option-label" for="qr-type">Create</label>
-                    <select class="option-select" id="qr-type">
-                        <option value="url">QR Code · URL</option>
-                        <option value="text">QR Code · Text</option>
-                        <option value="location">QR Code · Location</option>
-                        <option value="wifi">QR Code · WiFi</option>
-                    </select>
+                    <span class="option-label" id="qr-type-label">Create</span>
+                    <div class="picker-slot" id="qr-type-picker"></div>
                 </div>
 
                 <div class="card qr-fields-card">
@@ -135,9 +130,8 @@
             <p class="dropzone-formats" data-ref="formats"></p>
         </div>
         <input type="file" class="file-input" data-ref="input" multiple>
-        <div class="options hidden" data-ref="options"></div>
+        <div class="options" data-ref="options"></div>
         <div class="file-list hidden" data-ref="list"></div>
-        <button type="button" class="btn-accent btn-action hidden" data-ref="action"></button>
     </template>
 
     <div id="alert-modal" class="modal-overlay hidden">

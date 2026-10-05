@@ -8,36 +8,35 @@
         activeTab: 'convert',
         formats: null,
         tools: {},
+        qrType: null,
         qrCodeData: null,
     };
 
     const POLL_INTERVAL = 2000;
     // Video "conversion" runs through the video_compress operation, so keep quality high.
     const VIDEO_CONVERT_QUALITY = 85;
+    const DEFAULT_COMPRESS_QUALITY = 75;
 
     const ICON_DOWNLOAD = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.25V2.25M12.75 7.5L9 11.25L5.25 7.5M15.75 11.25V14.25C15.75 14.6478 15.592 15.0294 15.3107 15.3107C15.0294 15.592 14.6478 15.75 14.25 15.75H3.75C3.35218 15.75 2.97064 15.592 2.68934 15.3107C2.40804 15.0294 2.25 14.6478 2.25 14.25V11.25"/></svg>';
     const ICON_X = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 4.5L4.5 13.5M4.5 4.5L13.5 13.5"/></svg>';
+    const ICON_CHEVRONS = '<svg class="picker-chevron" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 15L12 20L17 15M7 9L12 4L17 9"/></svg>';
+    const ICON_CHECK = '<svg class="picker-check" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17L4 12"/></svg>';
+
+    const FORMAT_ALIASES = { jpg: 'jpeg', tif: 'tiff' };
 
     const CATEGORY_LABELS = { image: 'images', audio: 'audio files', video: 'videos', pdf: 'PDFs' };
-
-    // Which backend operation handles each file category, per tab.
-    const MODES = {
-        convert: {
-            verb: 'Convert',
-            progressVerb: 'Converting',
-            ops: { image: 'image_convert', audio: 'audio_convert', video: 'video_compress' },
-        },
-        compress: {
-            verb: 'Compress',
-            progressVerb: 'Compressing',
-            ops: { image: 'image_compress', audio: 'audio_compress', video: 'video_compress', pdf: 'pdf_compress' },
-        },
-    };
 
     // Formats used to detect a file's category from its extension.
     const CATEGORY_SOURCE = {
         image: 'image_convert',
         audio: 'audio_convert',
+        video: 'video_compress',
+        pdf: 'pdf_compress',
+    };
+
+    const COMPRESS_OPS = {
+        image: 'image_compress',
+        audio: 'audio_compress',
         video: 'video_compress',
         pdf: 'pdf_compress',
     };
@@ -87,7 +86,6 @@
         qrOutputSection: $('#qr-output-section'),
         qrResultCanvas: $('#qr-result-canvas'),
         btnDownloadQr: $('#btn-download-qr'),
-        qrType: $('#qr-type'),
         qrUrlInput: $('#qr-url-input'),
         qrTextInput: $('#qr-text-input'),
         qrLatitudeInput: $('#qr-latitude-input'),
@@ -104,6 +102,7 @@
         await loadFormats();
         state.tools.convert = createFileTool('convert', $('#panel-convert'));
         state.tools.compress = createFileTool('compress', $('#panel-compress'));
+        createQrTypePicker();
         bindEvents();
         switchQrType();
     }
@@ -134,6 +133,10 @@
         return state.formats[operation] || FALLBACK_FORMATS[operation] || {};
     }
 
+    function listOf(value) {
+        return Array.isArray(value) ? value : [];
+    }
+
     function bindEvents() {
         dom.tabs().forEach((tab) => {
             tab.addEventListener('click', () => switchTab(tab.dataset.tool));
@@ -153,7 +156,6 @@
 
         dom.btnDownloadQr.addEventListener('click', downloadQrCode);
 
-        dom.qrType.addEventListener('change', switchQrType);
         dom.qrUrlInput.addEventListener('input', generateQrCode);
         dom.qrTextInput.addEventListener('input', generateQrCode);
         dom.qrLocationSearch.addEventListener('input', debounceLocationSearch);
@@ -190,6 +192,149 @@
         });
     }
 
+    /* ---------- Picker (custom dropdown) ---------- */
+
+    // groups: [{ label?, items: [{ value, label, display? }] }]. Grid groups render as format chips.
+    function createPicker({ groups, value, grid = false, labelledBy, onChange }) {
+        const root = document.createElement('div');
+        root.className = 'picker';
+
+        const trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'picker-trigger';
+        trigger.setAttribute('aria-haspopup', 'listbox');
+        trigger.setAttribute('aria-expanded', 'false');
+        if (labelledBy) trigger.setAttribute('aria-labelledby', labelledBy);
+        trigger.innerHTML = `<span class="picker-value"></span><span class="picker-hint"></span>${ICON_CHEVRONS}`;
+
+        const menu = document.createElement('div');
+        menu.className = 'picker-menu' + (grid ? ' is-grid' : '');
+        menu.setAttribute('role', 'listbox');
+        menu.hidden = true;
+
+        const items = [];
+        groups.forEach((group) => {
+            const section = document.createElement('div');
+            section.className = 'picker-group';
+            if (group.label) {
+                const heading = document.createElement('div');
+                heading.className = 'picker-group-label';
+                heading.textContent = group.label;
+                section.appendChild(heading);
+            }
+            const list = document.createElement('div');
+            list.className = 'picker-options';
+            group.items.forEach((item) => {
+                const option = document.createElement('button');
+                option.type = 'button';
+                option.className = 'picker-option';
+                option.setAttribute('role', 'option');
+                option.tabIndex = -1;
+                option.innerHTML = `<span class="picker-option-label"></span>${ICON_CHECK}`;
+                option.querySelector('.picker-option-label').textContent = item.label;
+                option.addEventListener('click', () => {
+                    select(item.value, true);
+                    close(true);
+                });
+                list.appendChild(option);
+                items.push({ ...item, group: group.label || '', el: option });
+            });
+            section.appendChild(list);
+            menu.appendChild(section);
+        });
+
+        root.append(trigger, menu);
+
+        let current = null;
+
+        function select(val, notify) {
+            const item = items.find((i) => i.value === val) || items[0];
+            current = item;
+            items.forEach((i) => {
+                const selected = i === item;
+                i.el.classList.toggle('selected', selected);
+                i.el.setAttribute('aria-selected', selected);
+            });
+            trigger.querySelector('.picker-value').textContent = item.display || item.label;
+            trigger.querySelector('.picker-hint').textContent = grid ? item.group : '';
+            if (notify && onChange) onChange(item.value);
+        }
+
+        function open() {
+            if (!menu.hidden) return;
+            menu.hidden = false;
+            root.classList.add('open');
+            trigger.setAttribute('aria-expanded', 'true');
+            current.el.focus({ preventScroll: true });
+            current.el.scrollIntoView({ block: 'nearest' });
+            document.addEventListener('pointerdown', onOutside, true);
+        }
+
+        function close(focusTrigger) {
+            if (menu.hidden) return;
+            menu.hidden = true;
+            root.classList.remove('open');
+            trigger.setAttribute('aria-expanded', 'false');
+            document.removeEventListener('pointerdown', onOutside, true);
+            if (focusTrigger) trigger.focus();
+        }
+
+        function onOutside(e) {
+            if (!root.contains(e.target)) close(false);
+        }
+
+        function move(delta) {
+            const idx = items.findIndex((i) => i.el === document.activeElement);
+            const next = Math.max(0, Math.min(items.length - 1, (idx < 0 ? 0 : idx) + delta));
+            items[next].el.focus();
+        }
+
+        trigger.addEventListener('click', () => (menu.hidden ? open() : close(true)));
+        trigger.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                open();
+            }
+        });
+        menu.addEventListener('keydown', (e) => {
+            switch (e.key) {
+                case 'ArrowDown': e.preventDefault(); move(grid ? 4 : 1); break;
+                case 'ArrowUp': e.preventDefault(); move(grid ? -4 : -1); break;
+                case 'ArrowRight': e.preventDefault(); move(1); break;
+                case 'ArrowLeft': e.preventDefault(); move(-1); break;
+                case 'Home': e.preventDefault(); items[0].el.focus(); break;
+                case 'End': e.preventDefault(); items[items.length - 1].el.focus(); break;
+                case 'Escape': e.preventDefault(); close(true); break;
+                case 'Tab': close(false); break;
+            }
+        });
+
+        select(value, false);
+
+        return {
+            el: root,
+            get value() { return current.value; },
+        };
+    }
+
+    /* ---------- Settings persistence ---------- */
+
+    function loadSetting(key, fallback) {
+        try {
+            const v = localStorage.getItem('ilc.' + key);
+            return v == null ? fallback : v;
+        } catch (e) {
+            return fallback;
+        }
+    }
+
+    function saveSetting(key, value) {
+        try {
+            localStorage.setItem('ilc.' + key, value);
+        } catch (e) {
+        }
+    }
+
     /* ---------- File tools (Convert / Compress) ---------- */
 
     function createFileTool(mode, panel) {
@@ -200,29 +345,17 @@
 
         const tool = {
             mode,
-            config: MODES[mode],
             refs,
-            category: null,
             files: [],
             uploading: false,
             nextId: 1,
         };
 
-        const categories = Object.keys(tool.config.ops);
-        const inputExts = [];
-        categories.forEach((cat) => {
-            (formatsFor(CATEGORY_SOURCE[cat]).input || []).forEach((ext) => {
-                if (!inputExts.includes(ext)) inputExts.push(ext);
-            });
-        });
-        tool.inputExts = inputExts;
-
-        refs.formats.textContent = categories.map((c) => CATEGORY_LABELS[c]).join(', ')
-            .replace(/^./, (c) => c.toUpperCase())
-            .replace(/, ([^,]*)$/, ' and $1');
-        refs.formats.title = inputExts.map((f) => '.' + f).join(', ');
-        refs.input.setAttribute('accept', inputExts.map((f) => MIME_MAP[f] || '.' + f)
-            .concat(inputExts.map((f) => '.' + f)).join(','));
+        if (mode === 'convert') {
+            buildConvertOptions(tool);
+        } else {
+            buildCompressOptions(tool);
+        }
 
         refs.dropzone.addEventListener('click', () => refs.input.click());
         refs.dropzone.addEventListener('dragover', (e) => {
@@ -243,56 +376,158 @@
             addFiles(tool, refs.input.files);
             refs.input.value = '';
         });
-        refs.action.addEventListener('click', () => handleAction(tool));
 
         return tool;
     }
 
-    function categoryOf(tool, ext) {
-        return Object.keys(tool.config.ops).find((cat) =>
-            (formatsFor(CATEGORY_SOURCE[cat]).input || []).includes(ext)) || null;
+    function setAccepted(tool, exts, description) {
+        tool.inputExts = exts;
+        tool.refs.formats.textContent = description;
+        tool.refs.formats.title = exts.map((f) => '.' + f).join(', ');
+        tool.refs.input.setAttribute('accept', exts.map((f) => MIME_MAP[f] || '.' + f)
+            .concat(exts.map((f) => '.' + f)).join(','));
     }
 
+    function buildConvertOptions(tool) {
+        const groups = [
+            { label: 'Image', op: 'image_convert' },
+            { label: 'Remove background', op: 'image_remove_bg', suffix: ' · transparent' },
+            { label: 'Audio', op: 'audio_convert' },
+            { label: 'Video', op: 'video_compress' },
+        ].map((g) => ({
+            label: g.label,
+            items: listOf(formatsFor(g.op).output).map((f) => ({
+                value: `${g.op}:${f}`,
+                label: f.toUpperCase(),
+                display: f.toUpperCase() + (g.suffix || ''),
+            })),
+        })).filter((g) => g.items.length);
+
+        const row = document.createElement('div');
+        row.className = 'option-row';
+        row.innerHTML = '<span class="option-label" id="convert-to-label">Convert to</span>';
+
+        const picker = createPicker({
+            groups,
+            grid: true,
+            value: loadSetting('convertTarget', 'image_convert:jpeg'),
+            labelledBy: 'convert-to-label',
+            onChange: (value) => {
+                saveSetting('convertTarget', value);
+                updateConvertAccepted(tool);
+            },
+        });
+        row.appendChild(picker.el);
+        tool.refs.options.appendChild(row);
+        tool.picker = picker;
+        updateConvertAccepted(tool);
+    }
+
+    function convertTarget(tool) {
+        const [operation, format] = tool.picker.value.split(':');
+        return { operation, format };
+    }
+
+    function updateConvertAccepted(tool) {
+        const { operation } = convertTarget(tool);
+        const exts = listOf(formatsFor(operation).input);
+        const names = [...new Set(exts.map((f) => (FORMAT_ALIASES[f] || f).toUpperCase()))];
+        setAccepted(tool, exts, 'Accepts ' + names.join(', '));
+    }
+
+    function buildCompressOptions(tool) {
+        const initial = parseInt(loadSetting('compressQuality', DEFAULT_COMPRESS_QUALITY), 10) || DEFAULT_COMPRESS_QUALITY;
+        const row = document.createElement('div');
+        row.className = 'option-row';
+        row.innerHTML = `
+            <label class="option-label" for="compress-quality">Quality</label>
+            <div class="option-range-wrap">
+                <span class="option-range-hint">Smaller</span>
+                <input type="range" class="option-range" id="compress-quality" min="1" max="100" value="${initial}">
+                <span class="option-range-hint">Better</span>
+                <span class="option-range-value"></span>
+            </div>`;
+        const range = $('.option-range', row);
+        const value = $('.option-range-value', row);
+        const sync = () => {
+            value.textContent = range.value;
+            range.style.setProperty('--fill', ((range.value - range.min) / (range.max - range.min) * 100) + '%');
+        };
+        range.addEventListener('input', sync);
+        range.addEventListener('change', () => saveSetting('compressQuality', range.value));
+        sync();
+
+        tool.refs.options.appendChild(row);
+        tool.qualityInput = range;
+
+        const exts = [];
+        Object.values(CATEGORY_SOURCE).forEach((op) => {
+            listOf(formatsFor(op).input).forEach((ext) => {
+                if (!exts.includes(ext)) exts.push(ext);
+            });
+        });
+        setAccepted(tool, exts, 'Images, audio, video and PDFs');
+    }
+
+    function categoryOf(ext) {
+        return Object.keys(CATEGORY_SOURCE).find((cat) =>
+            listOf(formatsFor(CATEGORY_SOURCE[cat]).input).includes(ext)) || null;
+    }
+
+    // Resolves the job for a file from the tool's current settings, or returns { error }.
+    function jobFor(tool, ext) {
+        if (tool.mode === 'convert') {
+            const { operation, format } = convertTarget(tool);
+            if (!listOf(formatsFor(operation).input).includes(ext)) {
+                const category = categoryOf(ext);
+                const hint = category ? ` Pick a matching format in “Convert to” for ${CATEGORY_LABELS[category]}.` : '';
+                return { error: `.${ext} can't be converted to ${tool.picker.el.querySelector('.picker-value').textContent}.${hint}` };
+            }
+            const params = { output_format: format };
+            if (operation === 'video_compress') params.quality = VIDEO_CONVERT_QUALITY;
+            return { operation, params };
+        }
+
+        const category = categoryOf(ext);
+        const operation = category && COMPRESS_OPS[category];
+        if (!operation || !listOf(formatsFor(operation).input).includes(ext)) {
+            return { error: `.${ext} files can't be compressed.` };
+        }
+        const quality = parseInt(tool.qualityInput.value, 10);
+        const params = operation === 'pdf_compress' ? { image_quality: quality } : { quality };
+        return { operation, params };
+    }
+
+    // Dropped files are processed right away with the settings selected at that moment.
     function addFiles(tool, fileList) {
-        const unsupported = [];
-        const mismatched = [];
+        const rejected = [];
 
         Array.from(fileList).forEach((file) => {
             const ext = getExtension(file.name);
-            const category = categoryOf(tool, ext);
-            if (!category) {
-                unsupported.push(file.name);
+            const job = jobFor(tool, ext);
+            if (job.error) {
+                rejected.push(`${file.name}: ${job.error}`);
                 return;
             }
-            if (tool.category && category !== tool.category) {
-                mismatched.push(file.name);
-                return;
-            }
-            if (!tool.category) {
-                tool.category = category;
-                buildOptions(tool);
-            }
-            addFileRow(tool, file, ext);
+            addFileRow(tool, file, ext, job);
         });
 
-        const messages = [];
-        if (unsupported.length) {
-            messages.push(`Unsupported file type: ${unsupported.join(', ')}\n\nSupported: ${tool.inputExts.map((f) => '.' + f).join(', ')}`);
+        if (rejected.length) {
+            showAlert(rejected.join('\n\n'), rejected.length === 1 ? 'File skipped' : 'Files skipped');
         }
-        if (mismatched.length) {
-            messages.push(`Skipped ${mismatched.join(', ')}: all files in one batch must be ${CATEGORY_LABELS[tool.category]}. Finish or clear this batch first.`);
-        }
-        if (messages.length) showAlert(messages.join('\n\n'));
 
-        updateTool(tool);
+        updateList(tool);
+        pump(tool);
     }
 
-    function addFileRow(tool, file, ext) {
+    function addFileRow(tool, file, ext, job) {
         const item = {
             id: tool.nextId++,
             file,
             ext,
-            status: 'ready',
+            operation: job.operation,
+            params: job.params,
+            status: 'waiting',
             progress: 0,
             jobId: null,
             xhr: null,
@@ -307,10 +542,9 @@
             <div class="file-main">
                 <span class="file-name"></span>
                 <span class="file-meta"></span>
-                <div class="file-progress hidden"><div class="file-progress-fill"></div></div>
             </div>
             <div class="file-actions">
-                <a class="btn-chip btn-download hidden" href="#" download><span class="btn-chip-text">Download</span>${ICON_DOWNLOAD}</a>
+                <a class="btn-chip btn-download is-disabled" aria-disabled="true"><span class="btn-chip-text">Download</span>${ICON_DOWNLOAD}</a>
                 <button type="button" class="btn-chip btn-square" aria-label="Remove file" title="Remove">${ICON_X}</button>
             </div>`;
         $('.file-name', row).textContent = file.name;
@@ -320,8 +554,6 @@
         item.el = {
             row,
             meta: $('.file-meta', row),
-            progress: $('.file-progress', row),
-            fill: $('.file-progress-fill', row),
             download: $('.btn-download', row),
         };
 
@@ -331,6 +563,7 @@
     }
 
     function removeFile(tool, item) {
+        const wasUploading = item.status === 'uploading';
         if (item.xhr) {
             item.removed = true;
             item.xhr.abort();
@@ -341,103 +574,22 @@
         }
         item.el.row.remove();
         tool.files = tool.files.filter((f) => f !== item);
-        if (item.status === 'uploading') {
+        if (wasUploading) {
             tool.uploading = false;
             pump(tool);
         }
-        if (tool.files.length === 0) {
-            resetTool(tool);
-        }
-        updateTool(tool);
+        updateList(tool);
     }
 
-    function resetTool(tool) {
-        tool.files.forEach((item) => {
-            if (item.xhr) {
-                item.removed = true;
-                item.xhr.abort();
-            }
-            stopPolling(item);
-        });
-        tool.files = [];
-        tool.uploading = false;
-        tool.category = null;
-        tool.refs.list.innerHTML = '';
-        tool.refs.options.innerHTML = '';
-        updateTool(tool);
-    }
-
-    const ACTIVE_STATUSES = ['waiting', 'uploading', 'queued', 'processing'];
-
-    function updateTool(tool) {
-        const { refs, files, config } = tool;
-        const hasFiles = files.length > 0;
-
-        refs.list.classList.toggle('hidden', !hasFiles);
-        refs.options.classList.toggle('hidden', !hasFiles || !refs.options.children.length);
-        refs.action.classList.toggle('hidden', !hasFiles);
-        if (!hasFiles) return;
-
-        const active = files.filter((f) => ACTIVE_STATUSES.includes(f.status)).length;
-        const ready = files.filter((f) => f.status === 'ready').length;
-        const finished = files.filter((f) => f.status === 'done' || f.status === 'error').length;
-
-        refs.action.classList.remove('btn-muted');
-        refs.action.classList.add('btn-accent');
-
-        if (active > 0) {
-            const total = active + finished;
-            refs.action.disabled = true;
-            refs.action.textContent = total > 1
-                ? `${config.progressVerb}… ${finished}/${total}`
-                : `${config.progressVerb}…`;
-        } else if (ready > 0) {
-            refs.action.disabled = false;
-            refs.action.textContent = `${config.verb} ${ready} ${ready === 1 ? 'file' : 'files'}`;
-        } else {
-            refs.action.disabled = false;
-            refs.action.textContent = 'Start over';
-            refs.action.classList.remove('btn-accent');
-            refs.action.classList.add('btn-muted');
-        }
-    }
-
-    function handleAction(tool) {
-        const hasReady = tool.files.some((f) => f.status === 'ready');
-        if (!hasReady) {
-            resetTool(tool);
-            return;
-        }
-
-        const { operation, params } = gatherParams(tool);
-        const supported = formatsFor(operation).input || [];
-
-        tool.files.forEach((item) => {
-            if (item.status !== 'ready') return;
-            item.operation = operation;
-            item.params = params;
-            if (supported.length && !supported.includes(item.ext)) {
-                item.status = 'error';
-                item.error = `.${item.ext} is not supported for this option`;
-            } else {
-                item.status = 'waiting';
-            }
-            renderFile(item);
-        });
-
-        updateTool(tool);
-        pump(tool);
+    function updateList(tool) {
+        tool.refs.list.classList.toggle('hidden', tool.files.length === 0);
     }
 
     // Upload one file at a time; processing on the server runs in parallel.
     function pump(tool) {
         if (tool.uploading) return;
         const next = tool.files.find((f) => f.status === 'waiting');
-        if (!next) {
-            updateTool(tool);
-            return;
-        }
-        upload(tool, next);
+        if (next) upload(tool, next);
     }
 
     function upload(tool, item) {
@@ -445,7 +597,6 @@
         item.status = 'uploading';
         item.progress = 0;
         renderFile(item);
-        updateTool(tool);
 
         const formData = new FormData();
         formData.append('file', item.file);
@@ -461,7 +612,6 @@
             item.xhr = null;
             tool.uploading = false;
             renderFile(item);
-            updateTool(tool);
             pump(tool);
         };
 
@@ -478,7 +628,7 @@
                     const data = JSON.parse(xhr.responseText);
                     item.jobId = data.id;
                     item.status = 'queued';
-                    startPolling(tool, item);
+                    startPolling(item);
                 } catch (e) {
                     setError(item, 'Invalid response from server.');
                 }
@@ -509,9 +659,9 @@
         xhr.send(formData);
     }
 
-    function startPolling(tool, item) {
+    function startPolling(item) {
         stopPolling(item);
-        item.pollTimer = setInterval(() => pollJob(tool, item), POLL_INTERVAL);
+        item.pollTimer = setInterval(() => pollJob(item), POLL_INTERVAL);
     }
 
     function stopPolling(item) {
@@ -521,7 +671,7 @@
         }
     }
 
-    async function pollJob(tool, item) {
+    async function pollJob(item) {
         if (!item.jobId || item.polling) return;
         item.polling = true;
 
@@ -553,7 +703,6 @@
                 }
             }
             renderFile(item);
-            updateTool(tool);
         } catch (e) {
         } finally {
             item.polling = false;
@@ -566,19 +715,22 @@
     }
 
     function renderFile(item) {
-        const { row, meta, progress, fill, download } = item.el;
+        const { row, meta, download } = item.el;
         const size = formatBytes(item.file.size);
+        const busy = ['waiting', 'uploading', 'queued', 'processing'].includes(item.status);
 
         row.classList.toggle('is-error', item.status === 'error');
-        download.classList.toggle('hidden', item.status !== 'done');
-        progress.classList.toggle('hidden', !['uploading', 'queued', 'processing'].includes(item.status));
-        fill.classList.toggle('indeterminate', item.status === 'queued' || item.status === 'processing');
-        fill.style.width = item.status === 'uploading' ? item.progress + '%' : '';
+        row.classList.toggle('is-uploading', item.status === 'waiting' || item.status === 'uploading');
+        row.classList.toggle('is-processing', item.status === 'queued' || item.status === 'processing');
+        row.classList.toggle('is-done', item.status === 'done');
+        row.style.setProperty('--progress', item.status === 'uploading' ? item.progress : 0);
+        row.setAttribute('aria-busy', busy);
+
+        download.classList.toggle('hidden', item.status === 'error');
+        download.classList.toggle('is-disabled', item.status !== 'done');
+        download.setAttribute('aria-disabled', item.status !== 'done');
 
         switch (item.status) {
-            case 'ready':
-                meta.textContent = size;
-                break;
             case 'waiting':
                 meta.textContent = `${size} · Waiting…`;
                 break;
@@ -629,143 +781,6 @@
         download.setAttribute('download', baseName + '-iloveconversion' + outExt);
     }
 
-    /* ---------- Options ---------- */
-
-    function buildOptions(tool) {
-        const operation = tool.config.ops[tool.category];
-        const formats = formatsFor(operation);
-        let html = '';
-
-        if (tool.mode === 'convert') {
-            const outputs = Array.isArray(formats.output) ? formats.output : [];
-            let optionsHtml = outputs.map((f) => `<option value="${f}">${f.toUpperCase()}</option>`).join('');
-            if (tool.category === 'image') {
-                const bg = formatsFor('image_remove_bg');
-                const bgOutputs = Array.isArray(bg.output) ? bg.output : ['png', 'webp'];
-                optionsHtml += `<optgroup label="Remove background">${bgOutputs
-                    .map((f) => `<option value="bg:${f}">${f.toUpperCase()} · transparent</option>`).join('')}</optgroup>`;
-            }
-            html += selectRow('Convert to', 'output-format', optionsHtml);
-        } else {
-            switch (tool.category) {
-                case 'image':
-                    html += rangeRow('Quality', 'quality', 80);
-                    html += switchRow('Lossless', 'lossless');
-                    break;
-                case 'audio':
-                    html += rangeRow('Quality', 'quality', 70);
-                    html += switchRow('Lossless', 'lossless');
-                    break;
-                case 'video': {
-                    const outputs = Array.isArray(formats.output) ? formats.output : [];
-                    html += selectRow('Format', 'output-format', '<option value="">Keep original</option>' +
-                        outputs.map((f) => `<option value="${f}">${f.toUpperCase()}</option>`).join(''));
-                    html += rangeRow('Quality', 'quality', 65);
-                    break;
-                }
-                case 'pdf':
-                    html += selectRow('Image DPI', 'image-dpi', [
-                        ['72', '72 · Smallest'],
-                        ['150', '150 · Balanced'],
-                        ['300', '300 · High quality'],
-                        ['600', '600 · Maximum'],
-                    ].map(([v, l]) => `<option value="${v}"${v === '150' ? ' selected' : ''}>${l}</option>`).join(''));
-                    html += rangeRow('Image quality', 'image-quality', 75);
-                    break;
-            }
-        }
-
-        const opts = tool.refs.options;
-        opts.innerHTML = html;
-
-        $$('.option-range', opts).forEach((range) => {
-            const value = $(`[data-value-for="${range.dataset.opt}"]`, opts);
-            const sync = () => {
-                value.textContent = range.value;
-                range.style.setProperty('--fill', ((range.value - range.min) / (range.max - range.min) * 100) + '%');
-            };
-            range.addEventListener('input', sync);
-            sync();
-        });
-
-        const lossless = $('[data-opt="lossless"]', opts);
-        const quality = $('[data-opt="quality"]', opts);
-        if (lossless && quality) {
-            lossless.addEventListener('change', () => {
-                quality.disabled = lossless.checked;
-            });
-        }
-    }
-
-    function optId(name) {
-        return `opt-${name}-${Math.random().toString(36).slice(2, 8)}`;
-    }
-
-    function selectRow(label, name, optionsHtml) {
-        const id = optId(name);
-        return `
-            <div class="option-row">
-                <label class="option-label" for="${id}">${label}</label>
-                <select class="option-select" id="${id}" data-opt="${name}">${optionsHtml}</select>
-            </div>`;
-    }
-
-    function rangeRow(label, name, value) {
-        const id = optId(name);
-        return `
-            <div class="option-row">
-                <label class="option-label" for="${id}">${label}</label>
-                <div class="option-range-wrap">
-                    <input type="range" class="option-range" id="${id}" data-opt="${name}" min="1" max="100" value="${value}">
-                    <span class="option-range-value" data-value-for="${name}">${value}</span>
-                </div>
-            </div>`;
-    }
-
-    function switchRow(label, name) {
-        const id = optId(name);
-        return `
-            <label class="option-row switch-row" for="${id}">
-                <span class="switch-label">${label}</span>
-                <input type="checkbox" class="switch" id="${id}" data-opt="${name}">
-            </label>`;
-    }
-
-    function gatherParams(tool) {
-        const opts = tool.refs.options;
-        const get = (name) => $(`[data-opt="${name}"]`, opts);
-        let operation = tool.config.ops[tool.category];
-        const params = {};
-
-        const format = get('output-format');
-        if (format && format.value) {
-            if (format.value.startsWith('bg:')) {
-                operation = 'image_remove_bg';
-                params.output_format = format.value.slice(3);
-            } else {
-                params.output_format = format.value;
-            }
-        }
-
-        if (tool.mode === 'convert' && operation === 'video_compress') {
-            params.quality = VIDEO_CONVERT_QUALITY;
-        }
-
-        const quality = get('quality');
-        if (quality) params.quality = parseInt(quality.value, 10);
-
-        const lossless = get('lossless');
-        if (lossless) params.lossless = lossless.checked;
-
-        const dpi = get('image-dpi');
-        if (dpi) params.image_dpi = parseInt(dpi.value, 10);
-
-        const imgQuality = get('image-quality');
-        if (imgQuality) params.image_quality = parseInt(imgQuality.value, 10);
-
-        return { operation, params };
-    }
-
     /* ---------- Helpers ---------- */
 
     function showAlert(message, title = 'Info') {
@@ -788,8 +803,26 @@
 
     /* ---------- Create: QR codes ---------- */
 
+    function createQrTypePicker() {
+        state.qrType = createPicker({
+            groups: [{
+                items: [
+                    { value: 'url', label: 'URL', display: 'QR Code · URL' },
+                    { value: 'text', label: 'Text', display: 'QR Code · Text' },
+                    { value: 'location', label: 'Location', display: 'QR Code · Location' },
+                    { value: 'wifi', label: 'WiFi', display: 'QR Code · WiFi' },
+                ],
+                label: 'QR Code',
+            }],
+            value: 'url',
+            labelledBy: 'qr-type-label',
+            onChange: switchQrType,
+        });
+        $('#qr-type-picker').replaceWith(state.qrType.el);
+    }
+
     function switchQrType() {
-        const type = dom.qrType.value;
+        const type = state.qrType.value;
 
         $('#qr-url-fields').classList.toggle('hidden', type !== 'url');
         $('#qr-text-fields').classList.toggle('hidden', type !== 'text');
@@ -800,7 +833,7 @@
     }
 
     function generateQrCode() {
-        const type = dom.qrType.value;
+        const type = state.qrType.value;
         let data = '';
 
         switch (type) {
