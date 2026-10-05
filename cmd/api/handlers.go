@@ -40,6 +40,7 @@ func (a *app) handleHealth(w http.ResponseWriter, r *http.Request) {
 func (a *app) handleFormats(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.Header().Set("X-Max-File-Size", strconv.FormatInt(a.cfg.MaxFileSize, 10))
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(formatsJSON))
 }
