@@ -36,6 +36,9 @@ services:
     env_file: .env
     volumes:
       - file_storage:/app/storage
+    # Large uploads are buffered here before they are encrypted; keep that in RAM, not on disk.
+    tmpfs:
+      - /tmp:size=${API_TMPFS_SIZE:-1g},mode=1777
     depends_on:
       postgres:
         condition: service_healthy
