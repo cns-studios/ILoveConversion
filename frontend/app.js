@@ -118,9 +118,10 @@
     async function init() {
         document.documentElement.classList.add('no-indicator-motion');
         migrateConsentCookie();
+        clearStoredPreferences();
         await loadFormats();
         if (!ILCLocal.supportsWebp) LOCAL_IMAGE_OUTPUTS.splice(LOCAL_IMAGE_OUTPUTS.indexOf('webp'), 1);
-        state.mode = loadSetting('mode', 'local') === 'online' && hasConsent() ? 'online' : 'local';
+        state.mode = 'local';
         state.tools.convert = createFileTool('convert', $('#panel-convert'));
         state.tools.compress = createFileTool('compress', $('#panel-compress'));
         setMode(state.mode);
@@ -139,13 +140,13 @@
     let consentRequest = null;
 
     function hasConsent() {
-        return consentGiven || loadSetting('tosAccepted', '') === 'true';
+        return consentGiven || readAcceptance();
     }
 
     // Earlier versions kept the acceptance in a cookie; carry it over and delete the cookie.
     function migrateConsentCookie() {
         const cookies = document.cookie.split('; ');
-        if (cookies.includes('tos_and_policy_accepted=true')) saveSetting('tosAccepted', 'true');
+        if (cookies.includes('tos_and_policy_accepted=true')) storeAcceptance();
         if (cookies.some((c) => c.startsWith('tos_and_policy_accepted='))) {
             document.cookie = 'tos_and_policy_accepted=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax';
         }
@@ -167,7 +168,7 @@
         $('#consent-modal').classList.add('hidden');
         if (accepted) {
             consentGiven = true;
-            saveSetting('tosAccepted', 'true');
+            storeAcceptance();
         }
         const callback = request && (accepted ? request.onAccept : request.onDecline);
         if (callback) callback();
@@ -203,9 +204,9 @@
         $$('.mode-btn').forEach((btn) => {
             btn.addEventListener('click', () => {
                 if (btn.dataset.mode === 'online') {
-                    requireConsent(() => setMode('online', { persist: true }));
+                    requireConsent(() => setMode('online'));
                 } else {
-                    setMode('local', { persist: true });
+                    setMode('local');
                 }
             });
         });
@@ -364,9 +365,8 @@
 
     /* ---------- Local / Online mode ---------- */
 
-    function setMode(mode, { persist = false } = {}) {
+    function setMode(mode) {
         state.mode = mode;
-        if (persist) saveSetting('mode', mode);
 
         $$('.mode-btn').forEach((btn) => {
             const active = btn.dataset.mode === mode;
@@ -515,20 +515,42 @@
         };
     }
 
-    /* ---------- Settings persistence ---------- */
+    /* ---------- Settings ---------- */
+
+    // Choices are kept in memory for this visit only. The terms acceptance is the one thing
+    // stored on the device, as the privacy policy (section 8) says.
+    const settings = new Map();
+    const ACCEPTANCE_KEY = 'ilc.tosAccepted';
 
     function loadSetting(key, fallback) {
-        try {
-            const v = localStorage.getItem('ilc.' + key);
-            return v == null ? fallback : v;
-        } catch (e) {
-            return fallback;
-        }
+        return settings.has(key) ? settings.get(key) : fallback;
     }
 
     function saveSetting(key, value) {
+        settings.set(key, String(value));
+    }
+
+    function readAcceptance() {
         try {
-            localStorage.setItem('ilc.' + key, value);
+            return localStorage.getItem(ACCEPTANCE_KEY) === 'true';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function storeAcceptance() {
+        try {
+            localStorage.setItem(ACCEPTANCE_KEY, 'true');
+        } catch (e) {
+        }
+    }
+
+    // Earlier versions also remembered formats, quality and mode on the device; remove them.
+    function clearStoredPreferences() {
+        try {
+            Object.keys(localStorage)
+                .filter((k) => k.startsWith('ilc.') && k !== ACCEPTANCE_KEY)
+                .forEach((k) => localStorage.removeItem(k));
         } catch (e) {
         }
     }
