@@ -3,16 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ILoveConversion - File Conversion & Compression</title>
-    <link rel="stylesheet" href="/style.css">
+    <title>ILC · Free private file converter, compressor &amp; QR code maker</title>
+    <meta name="description" content="Convert and compress images, audio, video and PDFs for free. Local mode processes files right in your browser, so nothing is uploaded. No signup, no ads, open source.">
+    <meta name="keywords" content="file converter, image converter, compress images, png to jpg, heic to jpg, jpg to pdf, webp converter, compress pdf, audio converter, mp3 to wav, video compressor, background remover, qr code generator, private file converter, convert files in browser, no upload, offline converter, open source">
+    <meta name="author" content="CNS Studios">
+    <meta name="application-name" content="ILC">
+    <meta name="apple-mobile-web-app-title" content="ILC">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#09090b">
+    <link rel="canonical" href="https://ilc.cns-studios.com/">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="ILC · ILoveConversion">
+    <meta property="og:url" content="https://ilc.cns-studios.com/">
+    <meta property="og:title" content="ILC · Mess with your files">
+    <meta property="og:description" content="Convert, compress and create files for free. Runs in your browser, so your files stay on your device.">
+    <meta property="og:image" content="https://ilc.cns-studios.com/og-image.jpg">
+    <meta property="og:image:type" content="image/jpeg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="ILC · Mess with your files. Convert, Compress and Create buttons on a purple glow.">
+    <meta property="og:locale" content="en_US">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="ILC · Mess with your files">
+    <meta name="twitter:description" content="Convert, compress and create files for free. Runs in your browser, so your files stay on your device.">
+    <meta name="twitter:image" content="https://ilc.cns-studios.com/og-image.jpg">
+    <meta name="twitter:image:alt" content="ILC · Mess with your files. Convert, Compress and Create buttons on a purple glow.">
+
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="/favicon-192.png" type="image/png" sizes="192x192">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <meta name="theme-color" content="#09090b">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="alternate" type="text/markdown" href="/llms.txt" title="LLM-readable summary">
+
+    <link rel="stylesheet" href="/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;1,500&display=swap" rel="stylesheet">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "WebApplication",
+                "@id": "https://ilc.cns-studios.com/#app",
+                "name": "ILC",
+                "alternateName": ["ILoveConversion", "I Love Conversion"],
+                "url": "https://ilc.cns-studios.com/",
+                "description": "Free, privacy-focused web app to convert, compress and create files. Local mode processes images and audio directly in the browser without uploading them; online mode handles everything else with encrypted, auto-deleted uploads.",
+                "slogan": "Mess with your files",
+                "applicationCategory": "MultimediaApplication",
+                "applicationSubCategory": "File converter",
+                "operatingSystem": "Any (runs in a web browser)",
+                "browserRequirements": "Requires JavaScript and a modern web browser",
+                "isAccessibleForFree": true,
+                "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+                "inLanguage": "en",
+                "image": "https://ilc.cns-studios.com/og-image.jpg",
+                "screenshot": "https://ilc.cns-studios.com/og-image.jpg",
+                "featureList": [
+                    "Convert images between JPEG, PNG, WEBP, TIFF, GIF, AVIF, HEIF, BMP and PDF",
+                    "Compress JPEG, PNG and WEBP images in the browser without uploading",
+                    "Remove image backgrounds with AI",
+                    "Convert audio between MP3, WAV, FLAC, OGG, OPUS, AAC, M4A and AIFF",
+                    "Compress audio, video (MP4, MKV, WEBM) and PDF files",
+                    "Generate QR codes for URLs, text, locations and WiFi networks",
+                    "Local mode: files never leave the device",
+                    "Online mode: AES-256-GCM encrypted uploads, deleted after 24 hours",
+                    "No signup, no tracking, no ads, open source"
+                ],
+                "keywords": "file converter, image converter, image compressor, PDF compressor, audio converter, video compressor, background remover, QR code generator, private, in-browser, no upload, open source",
+                "publisher": { "@id": "https://ilc.cns-studios.com/#org" },
+                "sameAs": ["https://github.com/cns-studios/ILoveConversion"]
+            },
+            {
+                "@type": "Organization",
+                "@id": "https://ilc.cns-studios.com/#org",
+                "name": "CNS Studios",
+                "email": "contact@cns-studios.com",
+                "url": "https://github.com/cns-studios",
+                "logo": "https://ilc.cns-studios.com/favicon-192.png"
+            }
+        ]
+    }
+    </script>
     <script src="/qrcode.min.js"></script>
 </head>
 <body>
@@ -31,6 +108,8 @@
         </header>
 
         <main class="workspace">
+            <h1 class="visually-hidden">ILC: convert, compress and create files privately in your browser</h1>
+            <noscript><p class="noscript">ILC needs JavaScript to process files. Everything runs in your browser, nothing is tracked.</p></noscript>
 
             <nav class="tool-tabs" role="tablist">
                 <button class="tab active" data-tool="convert" role="tab" aria-selected="true">
