@@ -117,6 +117,7 @@
     };
 
     async function init() {
+        document.documentElement.classList.add('no-indicator-motion');
         checkConsent();
         await loadFormats();
         if (!ILCLocal.supportsWebp) LOCAL_IMAGE_OUTPUTS.splice(LOCAL_IMAGE_OUTPUTS.indexOf('webp'), 1);
@@ -127,6 +128,8 @@
         createQrTypePicker();
         bindEvents();
         switchQrType();
+        setupIndicators();
+        setTimeout(() => document.documentElement.classList.remove('page-enter'), 900);
     }
 
     function checkConsent() {
@@ -168,6 +171,18 @@
             btn.addEventListener('click', () => setMode(btn.dataset.mode, { persist: true }));
         });
 
+        document.addEventListener('ilc:modechange', (e) => {
+            const { mode, auto } = e.detail;
+            if (auto) {
+                pulse($('.mode-toggle'), 'pulse');
+                showToast(`${ICON_CLOUD}<span>Switched to Online mode. Uploads are encrypted and deleted after 24 hours.</span>`);
+            } else {
+                showToast(mode === 'local'
+                    ? `${ICON_LOCK}<span>Local mode. Files stay on this device.</span>`
+                    : `${ICON_CLOUD}<span>Online mode. Files are processed on the server.</span>`);
+            }
+        });
+
         $('#btn-alert-close').addEventListener('click', () => {
             $('#alert-modal').classList.add('hidden');
         });
@@ -198,6 +213,8 @@
     // Each tab keeps its own panel and state, so switching never interrupts running jobs.
     function switchTab(tab) {
         if (tab === state.activeTab) return;
+        const order = [...dom.tabs()].map((el) => el.dataset.tool);
+        const forward = order.indexOf(tab) > order.indexOf(state.activeTab);
         state.activeTab = tab;
 
         dom.tabs().forEach((el) => {
@@ -206,8 +223,75 @@
             el.setAttribute('aria-selected', isActive);
         });
         dom.panels().forEach((panel) => {
-            panel.classList.toggle('hidden', panel.dataset.panel !== tab);
+            const isActive = panel.dataset.panel === tab;
+            panel.classList.toggle('hidden', !isActive);
+            if (isActive) pulse(panel, forward ? 'enter-from-right' : 'enter-from-left');
         });
+        positionIndicator($('.tool-tabs'), $('.tab.active'), $('.tab-indicator'));
+    }
+
+    /* ---------- Motion helpers ---------- */
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    // Restarts a one-shot CSS animation class. Ignores animations bubbling up from children.
+    function pulse(el, className) {
+        el.classList.remove(className);
+        void el.offsetWidth;
+        el.classList.add(className);
+        const done = (e) => {
+            if (e.target !== el) return;
+            el.classList.remove(className);
+            el.removeEventListener('animationend', done);
+        };
+        el.addEventListener('animationend', done);
+    }
+
+    function positionIndicator(container, active, indicator) {
+        if (!active || !indicator) return;
+        indicator.style.width = active.offsetWidth + 'px';
+        indicator.style.height = active.offsetHeight + 'px';
+        indicator.style.transform = `translate(${active.offsetLeft}px, ${active.offsetTop}px)`;
+        container.classList.add('has-indicator');
+    }
+
+    // Sliding pills behind the active tab and the active mode; placed without animation first.
+    function setupIndicators() {
+        const place = () => {
+            positionIndicator($('.tool-tabs'), $('.tab.active'), $('.tab-indicator'));
+            positionIndicator($('.mode-toggle'), $('.mode-btn.active'), $('.mode-indicator'));
+        };
+        place();
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            document.documentElement.classList.remove('no-indicator-motion');
+        }));
+        if (document.fonts) document.fonts.ready.then(place);
+        if (window.ResizeObserver) {
+            new ResizeObserver(place).observe($('.tool-tabs'));
+        } else {
+            window.addEventListener('resize', place);
+        }
+    }
+
+    // Collapses an element's height and fades it out before it is removed.
+    function collapseOut(el) {
+        if (reducedMotion.matches || !el.animate || !el.offsetHeight) return Promise.resolve();
+        el.style.overflow = 'hidden';
+        return el.animate([
+            { height: el.offsetHeight + 'px', opacity: 1 },
+            { height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px' },
+        ], { duration: 240, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' }).finished
+            .catch(() => {})
+            .then(() => { el.style.overflow = ''; });
+    }
+
+    let toastTimer;
+    function showToast(html) {
+        const toast = $('#toast');
+        toast.innerHTML = html;
+        toast.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
     }
 
     /* ---------- Local / Online mode ---------- */
@@ -224,7 +308,14 @@
         });
         document.documentElement.dataset.mode = mode;
 
+        positionIndicator($('.mode-toggle'), $('.mode-btn.active'), $('.mode-indicator'));
+
         Object.values(state.tools).forEach((tool) => {
+            const visible = !tool.refs.dropzone.closest('.tool-panel').classList.contains('hidden');
+            if (!initial && changed && visible) {
+                pulse(tool.refs.modeNote, 'swap');
+                if (!tool.prompting) pulse(tool.refs.dropzone, 'mode-flash');
+            }
             tool.refs.modeNote.innerHTML = mode === 'local'
                 ? `${ICON_LOCK}<span>Processed on your device. Nothing is uploaded.</span>`
                 : `${ICON_CLOUD}<span>Encrypted upload, deleted after 24 hours.</span>`;
@@ -581,6 +672,7 @@
     function addFiles(tool, fileList) {
         const rejected = [];
 
+        let added = 0;
         Array.from(fileList).forEach((file) => {
             const ext = getExtension(file.name);
             const category = categoryOf(ext);
@@ -592,7 +684,7 @@
                 rejected.push(`${file.name}: ${CATEGORY_TITLES[category]} files can only be compressed. Use the Compress tab.`);
                 return;
             }
-            addFileRow(tool, file, ext, category);
+            addFileRow(tool, file, ext, category, added++);
         });
 
         if (rejected.length) {
@@ -1058,7 +1150,7 @@
         refresh(tool);
     }
 
-    function addFileRow(tool, file, ext, category) {
+    function addFileRow(tool, file, ext, category, order = 0) {
         const item = {
             id: tool.nextId++,
             file,
@@ -1087,6 +1179,12 @@
         $('.file-name', row).textContent = file.name;
         $('.file-name', row).title = file.name;
         $('.btn-square', row).addEventListener('click', () => removeFile(tool, item));
+        if (!reducedMotion.matches && row.animate) {
+            row.animate([
+                { opacity: 0, transform: 'translateY(8px)' },
+                { opacity: 1, transform: 'translateY(0)' },
+            ], { duration: 340, delay: Math.min(order, 8) * 45, easing: 'cubic-bezier(0.2, 0, 0, 1)', fill: 'backwards' });
+        }
 
         item.el = {
             row,
@@ -1109,26 +1207,36 @@
         }
     }
 
-    function removeFile(tool, item) {
+    async function removeFile(tool, item) {
+        if (item.removed) return;
         const wasUploading = item.status === 'uploading';
         disposeFile(item);
-        item.el.row.remove();
         tool.files = tool.files.filter((f) => f !== item);
         if (wasUploading) {
             tool.uploading = false;
             pump(tool);
         }
-        refresh(tool);
         updateCloudPrompt(tool);
+        if (tool.files.length) {
+            refresh(tool);
+            await collapseOut(item.el.row);
+            item.el.row.remove();
+        } else {
+            await collapseOut(tool.refs.files);
+            item.el.row.remove();
+            refresh(tool);
+        }
     }
 
-    function clearAll(tool) {
+    async function clearAll(tool) {
+        const rows = tool.files.map((f) => f.el.row);
         tool.files.forEach(disposeFile);
         tool.files = [];
         tool.uploading = false;
-        tool.refs.list.innerHTML = '';
-        refresh(tool);
         updateCloudPrompt(tool);
+        await collapseOut(tool.refs.files);
+        rows.forEach((row) => row.remove());
+        refresh(tool);
     }
 
     // One upload and one on-device job at a time; server-side processing runs in parallel.
@@ -1304,6 +1412,8 @@
         row.classList.toggle('is-uploading', item.status === 'waiting' || item.status === 'uploading');
         row.classList.toggle('is-processing', item.status === 'queued' || item.status === 'processing');
         row.classList.toggle('is-done', item.status === 'done');
+        if (item.status === 'done' && item.shownStatus !== 'done') pulse(row, 'just-done');
+        item.shownStatus = item.status;
         row.style.setProperty('--progress', item.status === 'uploading' ? item.progress : 0);
         row.setAttribute('aria-busy', busy);
 

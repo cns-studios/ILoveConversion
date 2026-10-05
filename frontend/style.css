@@ -137,11 +137,39 @@ textarea {
     border-radius: 13px;
 }
 
+.mode-toggle {
+    position: relative;
+    isolation: isolate;
+}
+
 .mode-indicator {
-    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    box-shadow: 0 4px 18px rgba(168, 85, 247, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 380ms cubic-bezier(0.34, 1.36, 0.64, 1), width 380ms cubic-bezier(0.34, 1.36, 0.64, 1), opacity 200ms ease;
+}
+
+.mode-toggle.has-indicator .mode-indicator {
+    opacity: 1;
+}
+
+.mode-toggle.has-indicator .mode-btn.active {
+    background: transparent;
+}
+
+.mode-toggle.pulse {
+    animation: modePulse 1.1s ease-out;
 }
 
 .mode-btn {
+    position: relative;
+    z-index: 1;
     padding: 6px 18px;
     border: none;
     border-radius: var(--radius-sm);
@@ -151,7 +179,11 @@ textarea {
     font-weight: 400;
     color: var(--text-primary);
     cursor: pointer;
-    transition: background-color var(--transition-fast);
+    transition: background-color var(--transition-fast), transform 120ms ease;
+}
+
+.mode-btn:active {
+    transform: scale(0.96);
 }
 
 .mode-btn:hover:not(.active) {
@@ -177,6 +209,8 @@ textarea {
 }
 
 .tool-tabs {
+    position: relative;
+    isolation: isolate;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
@@ -197,7 +231,7 @@ textarea {
     line-height: 1.2;
     cursor: pointer;
     white-space: nowrap;
-    transition: background-color var(--transition-base), border-radius var(--transition-base);
+    transition: background-color var(--transition-base), border-radius var(--transition-base), transform 120ms ease;
 }
 
 .tab:hover:not(.active) {
@@ -207,6 +241,49 @@ textarea {
 .tab.active {
     background: var(--accent);
     border-radius: var(--radius-pill);
+}
+
+.tab > * {
+    position: relative;
+    z-index: 1;
+}
+
+.tab:active {
+    transform: scale(0.97);
+}
+
+.tab-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    box-shadow: 0 8px 28px rgba(168, 85, 247, 0.3);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 420ms cubic-bezier(0.34, 1.36, 0.64, 1), width 420ms cubic-bezier(0.34, 1.36, 0.64, 1), height 420ms cubic-bezier(0.34, 1.36, 0.64, 1), opacity 200ms ease;
+}
+
+.tool-tabs.has-indicator .tab-indicator {
+    opacity: 1;
+}
+
+.tool-tabs.has-indicator .tab.active {
+    background: transparent;
+}
+
+.no-indicator-motion .tab-indicator,
+.no-indicator-motion .mode-indicator {
+    transition: none;
+}
+
+.tool-panel.enter-from-right {
+    animation: panelInRight 320ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.tool-panel.enter-from-left {
+    animation: panelInLeft 320ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .tab-icon {
@@ -284,6 +361,23 @@ textarea {
     padding: 40px 72px;
     border-color: var(--danger-border);
     cursor: default;
+    animation: nudge 420ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+.dropzone-cloud:not([hidden]) {
+    animation: promptIn 340ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.dropzone-default:not([hidden]) {
+    animation: fadeIn 260ms ease;
+}
+
+.dropzone.mode-flash {
+    animation: modeFlash 900ms ease-out;
+}
+
+.dropzone-mode.swap {
+    animation: noteSwap 420ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .dropzone.is-cloud-prompt:hover {
@@ -333,7 +427,7 @@ textarea {
     font-size: 20px;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color var(--transition-fast);
+    transition: background-color var(--transition-fast), transform 120ms ease;
 }
 
 .btn-outline:hover {
@@ -375,11 +469,19 @@ textarea {
     color: var(--text-primary);
     text-decoration: none;
     cursor: pointer;
-    transition: background-color var(--transition-fast), opacity var(--transition-fast);
+    transition: background-color var(--transition-fast), opacity var(--transition-fast), transform 120ms ease;
 }
 
 .btn-accent {
     background: var(--accent);
+}
+
+.btn-accent:active:not(:disabled),
+.btn-muted:active:not(:disabled),
+.btn-outline:active,
+.btn-chip:active,
+.quality-preset:active:not(:disabled) {
+    transform: scale(0.97);
 }
 
 .btn-accent:hover:not(:disabled) {
@@ -416,7 +518,7 @@ textarea {
     text-decoration: none;
     white-space: nowrap;
     cursor: pointer;
-    transition: background-color var(--transition-fast);
+    transition: background-color var(--transition-fast), transform 120ms ease;
 }
 
 .btn-chip:hover {
@@ -492,6 +594,17 @@ textarea {
     color: var(--accent-soft);
 }
 
+/* "backwards" so no transform lingers: it would trap open picker menus below later groups. */
+.setup.open .option-group,
+.setup.open .setup-note {
+    animation: fadeSlideUp 360ms cubic-bezier(0.2, 0, 0, 1) backwards;
+}
+
+.setup.open .options > :nth-child(2) { animation-delay: 50ms; }
+.setup.open .options > :nth-child(3) { animation-delay: 100ms; }
+.setup.open .options > :nth-child(4) { animation-delay: 150ms; }
+.setup.open .options > :nth-child(5) { animation-delay: 200ms; }
+
 .option-group {
     display: flex;
     flex-direction: column;
@@ -561,7 +674,7 @@ textarea {
     font-weight: 500;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+    transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform 120ms ease;
 }
 
 .quality-preset:hover:not(:disabled) {
@@ -653,6 +766,10 @@ textarea {
     position: relative;
     flex: 1;
     min-width: 0;
+}
+
+.picker.open {
+    z-index: 30;
 }
 
 .picker-trigger {
@@ -987,7 +1104,14 @@ textarea {
     justify-content: space-between;
     gap: 16px;
     padding: 10px 14px;
-    animation: fadeIn 0.2s ease;
+}
+
+.file-row.just-done {
+    animation: rowDone 700ms ease-out;
+}
+
+.file-row.just-done .btn-download {
+    animation: pop 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .file-row:first-child {
@@ -1232,6 +1356,40 @@ button.search-result-item:hover {
     color: var(--accent);
 }
 
+/* ---------- Toast ---------- */
+
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 28px;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: calc(100vw - 32px);
+    padding: 12px 18px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: var(--bg-menu);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    font-size: 14px;
+    color: var(--text-primary);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, 16px) scale(0.98);
+    transition: opacity 220ms ease, transform 420ms cubic-bezier(0.34, 1.36, 0.64, 1);
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+}
+
+.toast svg {
+    flex-shrink: 0;
+    color: var(--accent-soft);
+}
+
 /* ---------- Modals ---------- */
 
 .modal-overlay {
@@ -1295,6 +1453,76 @@ button.search-result-item:hover {
 }
 
 /* ---------- Animations ---------- */
+
+/* Entrance on first load only; the class is removed once the page has settled. */
+.page-enter .site-header {
+    animation: fadeSlideDown 480ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.page-enter .workspace > .tool-tabs {
+    animation: fadeSlideUp 480ms 80ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.page-enter .workspace > .tool-panel:not(.hidden) {
+    animation: fadeSlideUp 520ms 160ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes fadeSlideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes panelInRight {
+    from { opacity: 0; transform: translateX(28px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes panelInLeft {
+    from { opacity: 0; transform: translateX(-28px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes rowDone {
+    0% { background-color: rgba(52, 211, 153, 0); }
+    25% { background-color: rgba(52, 211, 153, 0.08); }
+    100% { background-color: rgba(52, 211, 153, 0); }
+}
+
+@keyframes pop {
+    0% { transform: scale(0.85); }
+    60% { transform: scale(1.06); }
+    100% { transform: scale(1); }
+}
+
+@keyframes nudge {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(5px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(2px); }
+}
+
+@keyframes promptIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes modeFlash {
+    0% { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.18), inset 0 0 40px rgba(168, 85, 247, 0.12); }
+    100% { border-color: var(--border-dash); box-shadow: 0 0 0 0 rgba(168, 85, 247, 0), inset 0 0 40px rgba(168, 85, 247, 0); }
+}
+
+@keyframes noteSwap {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes modePulse {
+    0% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.55); }
+    50% { box-shadow: 0 0 0 12px rgba(168, 85, 247, 0); }
+    51% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.4); }
+    100% { box-shadow: 0 0 0 12px rgba(168, 85, 247, 0); }
+}
 
 /* Leading edge travels across the row; fades in and out at the ends so the loop is seamless. */
 @keyframes row-sweep {

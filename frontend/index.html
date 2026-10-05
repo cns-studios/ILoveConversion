@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="page-enter">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -112,6 +112,7 @@
             <noscript><p class="noscript">ILC needs JavaScript to process files. Everything runs in your browser, nothing is tracked.</p></noscript>
 
             <nav class="tool-tabs" role="tablist">
+                <span class="tab-indicator" aria-hidden="true"></span>
                 <button class="tab active" data-tool="convert" role="tab" aria-selected="true">
                     <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 21 21" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19.25 10.25C19.25 7.86305 18.3018 5.57387 16.614 3.88604C14.9261 2.19821 12.6369 1.25 10.25 1.25C7.73395 1.25947 5.31897 2.24122 3.51 3.99L1.25 6.25M6.25 6.25H1.25V1.25M1.25 10.25C1.25 12.6369 2.19821 14.9261 3.88604 16.614C5.57387 18.3018 7.86305 19.25 10.25 19.25C12.766 19.2405 15.181 18.2588 16.99 16.51L19.25 14.25M19.25 19.25V14.25H14.25"/></svg>
                     <span>Convert</span>
@@ -235,6 +236,8 @@
             <div class="file-list" data-ref="list"></div>
         </div>
     </template>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <div id="alert-modal" class="modal-overlay hidden">
         <div class="modal-content modal-content-small">
