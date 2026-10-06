@@ -3,5 +3,7 @@
 *.log
 *.tmp
 .vscode/
+!README.md
+!CONTRIBUTING.md
+!SECURITY.md
 !legal/*.md
-scripts/
