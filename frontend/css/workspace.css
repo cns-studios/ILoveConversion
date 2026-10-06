@@ -1,0 +1,106 @@
+.workspace {
+    width: 100%;
+    max-width: calc(var(--content-width) + 32px);
+    margin: 0 auto;
+    padding: clamp(48px, 16vh, 160px) 16px 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 69px;
+    flex: 1;
+}
+
+.tool-tabs {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+}
+
+.tab {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 32px;
+    border: none;
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 20px;
+    font-weight: 500;
+    line-height: 1.2;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color var(--transition-base), border-radius var(--transition-base), transform 120ms ease;
+}
+
+.tab:hover:not(.active) {
+    background: var(--bg-hover);
+}
+
+.tab.active {
+    background: var(--accent);
+    border-radius: var(--radius-pill);
+}
+
+.tab > * {
+    position: relative;
+    z-index: 1;
+}
+
+.tab:active {
+    transform: scale(0.97);
+}
+
+.tab-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 420ms cubic-bezier(0.34, 1.36, 0.64, 1), width 420ms cubic-bezier(0.34, 1.36, 0.64, 1), height 420ms cubic-bezier(0.34, 1.36, 0.64, 1), opacity 200ms ease;
+}
+
+.tool-tabs.has-indicator .tab-indicator {
+    opacity: 1;
+}
+
+.tool-tabs.has-indicator .tab.active {
+    background: transparent;
+}
+
+.no-indicator-motion .tab-indicator,
+.no-indicator-motion .mode-indicator {
+    transition: none;
+}
+
+.tool-panel.enter-from-right {
+    animation: panelInRight 320ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.tool-panel.enter-from-left {
+    animation: panelInLeft 320ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.tab-icon {
+    flex-shrink: 0;
+}
+
+.tool-panel {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 22px;
+}

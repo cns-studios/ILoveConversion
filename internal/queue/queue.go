@@ -21,7 +21,7 @@ func New(addr string, poolSize int) (*Queue, error) {
 		PoolSize:     poolSize,
 		MinIdleConns: 2,
 		DialTimeout:  3 * time.Second,
-		ReadTimeout:  35 * time.Second, 
+		ReadTimeout:  35 * time.Second,
 		WriteTimeout: 5 * time.Second,
 	})
 

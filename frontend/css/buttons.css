@@ -1,0 +1,83 @@
+.btn-accent,
+.btn-muted {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-width: 166px;
+    height: 50px;
+    padding: 0 24px;
+    border: none;
+    border-radius: var(--radius-lg);
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--text-primary);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), opacity var(--transition-fast), transform 120ms ease;
+}
+
+.btn-accent {
+    background: var(--accent);
+}
+
+.btn-accent:active:not(:disabled),
+.btn-muted:active:not(:disabled),
+.btn-outline:active,
+.btn-chip:active,
+.quality-preset:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.btn-accent:hover:not(:disabled) {
+    background: var(--accent-hover);
+}
+
+.btn-muted {
+    background: var(--bg-tertiary);
+}
+
+.btn-muted:hover:not(:disabled) {
+    background: var(--bg-tertiary-hover);
+}
+
+.btn-accent:disabled,
+.btn-muted:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.btn-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 12px 16px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 18px;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), transform 120ms ease;
+}
+
+.btn-chip:hover {
+    background: var(--bg-tertiary-hover);
+}
+
+.btn-chip.btn-chip-accent {
+    background: var(--accent);
+}
+
+.btn-chip.btn-chip-accent:hover {
+    background: var(--accent-hover);
+}
+
+.btn-chip.btn-square {
+    padding: 12px;
+}

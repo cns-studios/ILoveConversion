@@ -6,3 +6,6 @@
 *.md
 LICENSE
 README*
+images
+docker-compose.yml
+legal

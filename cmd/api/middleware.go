@@ -23,9 +23,6 @@ func sessionFromCtx(r *http.Request) *models.Session {
 	return s
 }
 
-// sessionMiddleware attaches the caller's session and blocks flagged IPs.
-// Only routes built with count=true are charged against the hourly limit, so
-// status polls and downloads of an existing job don't use it up.
 func (a *app) sessionMiddleware(count bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -43,8 +40,7 @@ func (a *app) sessionMiddleware(count bool) func(http.Handler) http.Handler {
 			}
 
 			if session.IsFlagged {
-				log.Printf("[session] Blocked flagged IP: %s (total: %d)",
-					ip, session.TotalRequestCount)
+				log.Printf("[session] Blocked flagged IP: %s", ip)
 				writeError(w, http.StatusForbidden,
 					"Access restricted. Too many requests from this IP.")
 				return
@@ -88,7 +84,6 @@ func clientIP(r *http.Request) string {
 	}
 	return host
 }
-
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

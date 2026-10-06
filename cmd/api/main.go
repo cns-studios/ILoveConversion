@@ -121,8 +121,13 @@ func (a *app) buildRouter() chi.Router {
 
 		r.With(a.sessionMiddleware(true)).Post("/jobs", a.handleCreateJob)
 
+		r.With(a.sessionMiddleware(true)).Post("/uploads", a.handleInitUpload)
+
 		r.Group(func(r chi.Router) {
 			r.Use(a.sessionMiddleware(false))
+
+			r.Put("/uploads/{id}/chunks/{index}", a.handleUploadChunk)
+			r.Post("/uploads/{id}/complete", a.handleCompleteUpload)
 
 			r.Get("/jobs/{id}", a.handleGetJob)
 			r.Get("/jobs/{id}/download", a.handleDownload)
@@ -165,6 +170,13 @@ func (a *app) runCleanup() {
 			a.store.DeleteJobFiles(id)
 		}
 		log.Printf("[cleanup] Removed %d expired jobs + files", len(ids))
+	}
+
+	removed, err := a.db.CleanupInactiveSessions(ctx)
+	if err != nil {
+		log.Printf("[cleanup] inactive sessions error: %v", err)
+	} else if removed > 0 {
+		log.Printf("[cleanup] Removed %d inactive sessions", removed)
 	}
 
 	n, err := a.db.ResetHourlyCounts(ctx)

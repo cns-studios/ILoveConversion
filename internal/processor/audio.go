@@ -19,13 +19,13 @@ func AudioConvert(ctx context.Context, inputPath, outputPath string, params mode
 
 	switch params.OutputFormat {
 	case "mp3":
-		args = append(args, "-c:a", "libmp3lame", "-q:a", "2") // VBR ~190kbps
+		args = append(args, "-c:a", "libmp3lame", "-q:a", "2")
 	case "wav":
 		args = append(args, "-c:a", "pcm_s16le")
 	case "flac":
 		args = append(args, "-c:a", "flac", "-compression_level", "8")
 	case "ogg":
-		args = append(args, "-c:a", "libvorbis", "-q:a", "5") // ~160kbps
+		args = append(args, "-c:a", "libvorbis", "-q:a", "5")
 	case "opus":
 		args = append(args, "-c:a", "libopus", "-b:a", "128k")
 	case "aac":

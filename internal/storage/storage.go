@@ -5,12 +5,14 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 type Storage struct {
 	basePath   string
 	inputsDir  string
 	outputsDir string
+	partsDir   string
 }
 
 func New(basePath string) (*Storage, error) {
@@ -18,6 +20,7 @@ func New(basePath string) (*Storage, error) {
 		basePath:   basePath,
 		inputsDir:  filepath.Join(basePath, "inputs"),
 		outputsDir: filepath.Join(basePath, "outputs"),
+		partsDir:   filepath.Join(basePath, "inputs", "parts"),
 	}
 
 	for _, dir := range []string{s.inputsDir, s.outputsDir} {
@@ -48,9 +51,47 @@ func (s *Storage) OutputExists(jobID string) bool {
 	return err == nil
 }
 
+func (s *Storage) DeleteInput(jobID string) {
+	os.Remove(s.InputPath(jobID))
+}
+
 func (s *Storage) DeleteJobFiles(jobID string) {
 	os.Remove(s.InputPath(jobID))
 	os.Remove(s.OutputPath(jobID))
+	s.DeleteParts(jobID)
+}
+
+func (s *Storage) partPath(jobID string, index int) string {
+	return filepath.Join(s.partsDir, jobID, strconv.Itoa(index))
+}
+
+func (s *Storage) CreatePart(jobID string, index int) (*os.File, error) {
+	dir := filepath.Join(s.partsDir, jobID)
+	if err := os.MkdirAll(dir, 0777); err != nil {
+		return nil, fmt.Errorf("create parts dir %s: %w", dir, err)
+	}
+	f, err := os.OpenFile(s.partPath(jobID, index)+".tmp", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		return nil, fmt.Errorf("create part %d of %s: %w", index, jobID, err)
+	}
+	return f, nil
+}
+
+func (s *Storage) CommitPart(jobID string, index int) error {
+	p := s.partPath(jobID, index)
+	return os.Rename(p+".tmp", p)
+}
+
+func (s *Storage) DiscardPart(jobID string, index int) {
+	os.Remove(s.partPath(jobID, index) + ".tmp")
+}
+
+func (s *Storage) OpenPart(jobID string, index int) (*os.File, error) {
+	return os.Open(s.partPath(jobID, index))
+}
+
+func (s *Storage) DeleteParts(jobID string) {
+	os.RemoveAll(filepath.Join(s.partsDir, jobID))
 }
 
 func (s *Storage) CreateInput(jobID string) (*os.File, error) {

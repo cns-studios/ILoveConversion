@@ -1,11 +1,12 @@
-# ── Build Stage ──
 FROM golang:1.22-bookworm AS builder
 
 WORKDIR /build
 
-COPY . .
+COPY go.mod go.sum ./
+RUN go mod download
 
-RUN go mod tidy
+COPY internal ./internal
+COPY cmd/api ./cmd/api
 
 RUN mkdir -p /out && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \

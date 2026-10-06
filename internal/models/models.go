@@ -8,14 +8,12 @@ import (
 	"time"
 )
 
-
 const (
 	StatusPending    = "pending"
 	StatusProcessing = "processing"
 	StatusCompleted  = "completed"
 	StatusFailed     = "failed"
 )
-
 
 const (
 	OpImageConvert  = "image_convert"
@@ -37,26 +35,21 @@ var ValidOperations = map[string]bool{
 	OpVideoCompress: true,
 }
 
-
 var MimeTypes = map[string]string{
-	// Images
 	"jpeg": "image/jpeg", "jpg": "image/jpeg",
 	"png": "image/png", "webp": "image/webp",
 	"tiff": "image/tiff", "tif": "image/tiff",
 	"gif": "image/gif", "avif": "image/avif",
 	"heif": "image/heif", "heic": "image/heic",
 	"bmp": "image/bmp",
-	// Audio
 	"mp3": "audio/mpeg", "wav": "audio/wav",
 	"flac": "audio/flac", "ogg": "audio/ogg",
 	"opus": "audio/opus", "aac": "audio/aac",
 	"m4a": "audio/mp4", "aiff": "audio/aiff",
 	"wma": "audio/x-ms-wma",
-	// Video
 	"mp4": "video/mp4", "mkv": "video/x-matroska",
 	"webm": "video/webm", "avi": "video/x-msvideo",
 	"mov": "video/quicktime",
-	// Document
 	"pdf": "application/pdf",
 }
 
@@ -67,7 +60,6 @@ func MimeForExtension(ext string) string {
 	}
 	return "application/octet-stream"
 }
-
 
 var inputFormats = map[string][]string{
 	OpImageConvert:  {"jpeg", "jpg", "png", "webp", "tiff", "tif", "gif", "avif", "heif", "heic", "bmp"},
@@ -81,11 +73,11 @@ var inputFormats = map[string][]string{
 
 var outputFormats = map[string][]string{
 	OpImageConvert:  {"jpeg", "png", "webp", "tiff", "gif", "avif", "heif", "bmp", "pdf"},
-	OpImageCompress: {}, // same as input
+	OpImageCompress: {},
 	OpImageRemoveBG: {"png", "webp"},
 	OpPDFCompress:   {"pdf"},
 	OpAudioConvert:  {"mp3", "wav", "flac", "ogg", "opus", "aac", "m4a", "aiff"},
-	OpAudioCompress: {}, // same as input
+	OpAudioCompress: {},
 	OpVideoCompress: {"mp4", "mkv", "webm"},
 }
 
@@ -127,7 +119,6 @@ type Session struct {
 	LastRequestAt      time.Time `json:"last_request_at"`
 	HourlyWindowStart  time.Time `json:"hourly_window_start"`
 	HourlyRequestCount int       `json:"hourly_request_count"`
-	TotalRequestCount  int       `json:"total_request_count"`
 	IsFlagged          bool      `json:"is_flagged"`
 }
 
@@ -215,7 +206,6 @@ type AdminStats struct {
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
-
 
 type JobParams struct {
 	OutputFormat string `json:"output_format,omitempty"`

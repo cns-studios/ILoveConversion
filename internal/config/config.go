@@ -21,7 +21,7 @@ type Config struct {
 	RedisPort     int
 	RedisPoolSize int
 
-	MasterKey []byte 
+	MasterKey []byte
 
 	RateLimitPerHour int
 	FlagThreshold    int
@@ -66,7 +66,6 @@ func (c *Config) MaxRetriesFor(operation string) int {
 }
 
 func Load() (*Config, error) {
-	// ── Master encryption key (required) ──
 	masterKeyHex := os.Getenv("ENCRYPTION_MASTER_KEY")
 	if masterKeyHex == "" {
 		return nil, fmt.Errorf("ENCRYPTION_MASTER_KEY is required (generate with: openssl rand -hex 32)")
@@ -85,9 +84,9 @@ func Load() (*Config, error) {
 
 		DBHost:     envStr("POSTGRES_HOST", "postgres"),
 		DBPort:     envInt("POSTGRES_PORT", 5432),
-		DBUser:     envStr("POSTGRES_USER", "fileforge"),
-		DBPassword: envStr("POSTGRES_PASSWORD", "changeme"),
-		DBName:     envStr("POSTGRES_DB", "fileforge"),
+		DBUser:     envStr("POSTGRES_USER", "ilc"),
+		DBPassword: envStr("POSTGRES_PASSWORD", ""),
+		DBName:     envStr("POSTGRES_DB", "ilc"),
 
 		RedisHost:     envStr("REDIS_HOST", "redis"),
 		RedisPort:     envInt("REDIS_PORT", 6379),
@@ -97,10 +96,10 @@ func Load() (*Config, error) {
 		RateLimitPerHour: envInt("RATE_LIMIT_PER_HOUR", 600),
 		FlagThreshold:    envInt("FLAG_THRESHOLD", 5000),
 
-		MaxFileSize:        envInt64("MAX_FILE_SIZE", 524288000), // 500MB default
+		MaxFileSize:        envInt64("MAX_FILE_SIZE", 524288000),
 		StoragePath:        envStr("STORAGE_PATH", "/app/storage"),
-		CleanupIntervalMin: envInt("CLEANUP_INTERVAL_MINUTES", 10),
-		FileRetentionHours: envInt("FILE_RETENTION_HOURS", 24),
+		CleanupIntervalMin: envInt("CLEANUP_INTERVAL_MINUTES", 5),
+		FileRetentionHours: envInt("FILE_RETENTION_HOURS", 1),
 
 		WorkerConcurrency: envInt("WORKER_CONCURRENCY", 4),
 		RembgURL:          envStr("REMBG_URL", "http://rembg:5000"),
@@ -127,9 +126,15 @@ func Load() (*Config, error) {
 		},
 	}
 
+	if cfg.FileRetentionHours < 1 {
+		return nil, fmt.Errorf("FILE_RETENTION_HOURS must be a whole number of hours, at least 1")
+	}
+	if cfg.CleanupIntervalMin < 1 {
+		return nil, fmt.Errorf("CLEANUP_INTERVAL_MINUTES must be at least 1")
+	}
+
 	return cfg, nil
 }
-
 
 func envStr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {

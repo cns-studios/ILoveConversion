@@ -22,7 +22,6 @@ const (
 	hkdfInfo = "fileforge-file-encryption"
 )
 
-
 func DeriveKey(masterKey []byte, jobID string) ([]byte, error) {
 	if len(masterKey) != 32 {
 		return nil, fmt.Errorf("master key must be 32 bytes, got %d", len(masterKey))

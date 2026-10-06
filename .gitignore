@@ -3,3 +3,5 @@
 *.log
 *.tmp
 .vscode/
+!legal/*.md
+scripts/
