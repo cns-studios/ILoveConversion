@@ -28,9 +28,15 @@ PAGES = [
         'title': 'How ILC handles your data',
         'description': 'A plain-language summary of what happens to your files in ILC: what is stored, for how long, and who can see it.',
     },
+    {
+        'src': 'legal-notice.md', 'out': 'legal-notice.html', 'path': '/legal-notice.html',
+        'title': 'Legal Notice',
+        'description': 'Legal notice (Impressum) for ILC (ILoveConversion) by CNS Studios.',
+    },
 ]
 
-LINKS = {'/privacy': '/privacy.html', '/terms': '/terms.html', '/data-processing': '/data-processing.html'}
+LINKS = {'/privacy': '/privacy.html', '/terms': '/terms.html', '/data-processing': '/data-processing.html',
+         '/legal-notice': '/legal-notice.html'}
 
 ANCHORS = {}
 
@@ -194,6 +200,8 @@ def page(cfg, body):
             <a href="/terms.html">Terms of Service</a>
             <a href="/privacy.html">Privacy Policy</a>
             <a href="/data-processing.html">Data Processing</a>
+            <a href="/legal-notice.html">Legal Notice</a>
+            <a href="https://github.com/cns-studios/ILoveConversion">Source</a>
         </footer>
     </div>
 </body>

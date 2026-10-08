@@ -41,19 +41,19 @@
         <main class="legal-content">
             <h1 class="legal-title">How ILC handles your data</h1>
 
-            <p class="legal-updated">Version 2.1 · Oct 5th, 2026 · This is a summary. The legally binding details are in the <a href="/privacy.html">Privacy Policy</a>.</p>
+            <p class="legal-updated">Version 2.1 · Oct 5, 2026 · This is a summary. The legally binding details are in the <a href="/privacy.html">Privacy Policy</a>.</p>
 
             <section class="legal-section" id="two-modes">
                 <h2>Two modes</h2>
-                <p><strong>Local mode (recommended).</strong> Everything happens in your browser. Your files never leave your device, and nothing about them is sent to our server. If you can use local mode, use it.</p>
-                <p><strong>Online mode.</strong> Your file is uploaded to our server, converted there, and sent back to you. It is for conversions that your browser cannot do. Here is exactly what happens.</p>
+                <p><strong>Local mode (recommended).</strong> Everything happens in your browser. Your files never leave your device, and nothing about them is sent to our servers. If you can use local mode, use it.</p>
+                <p><strong>Online mode.</strong> Your file is uploaded to our servers, converted there, and sent back to you. It is for conversions that your browser cannot do. Here is exactly what happens.</p>
             </section>
 
             <section class="legal-section" id="what-happens-to-your-file-in-online-mode">
                 <h2>What happens to your file in online mode</h2>
                 <ol>
                 <li><strong>Upload.</strong> Your browser sends the file to our site. It travels through Cloudflare, a US company that protects the site and can technically see the traffic passing through (see "Who can see what" below).</li>
-                <li><strong>Encryption.</strong> Our server encrypts the file as it arrives and saves it on its disk. Each file has its own key.</li>
+                <li><strong>Encryption.</strong> Our servers encrypts the file as it arrives and saves it on its disk. Each file has its own key.</li>
                 <li><strong>Processing.</strong> A worker program decrypts the file in the server's memory (RAM, not disk), converts it with standard tools (ffmpeg, Ghostscript, image tools, and our own background-removal component), and encrypts the result.</li>
                 <li><strong>Cleanup of the original.</strong> As soon as the conversion has finished or failed, your uploaded file and the temporary working copy are deleted.</li>
                 <li><strong>Download.</strong> You download the result. The server decrypts it on the fly while sending it to you.</li>
@@ -83,14 +83,14 @@
                 <ul>
                 <li><strong>You.</strong> Your files, always.</li>
                 <li><strong>Cloudflare.</strong> Because all traffic goes through Cloudflare, it can technically see traffic in transit, including uploaded files and your IP address. It is bound by a data processing agreement. In local mode, it only sees that you loaded the page.</li>
-                <li><strong>Us (the operators).</strong> Technically we can access our own server and could decrypt files. We do not look at your files. We would only do so to fix a technical fault or to follow up a specific report of illegal content.</li>
+                <li><strong>Us (the operators).</strong> Technically we can access our own servers and could decrypt files. We do not look at your files. We would only do so to fix a technical fault or to follow up a specific report of illegal content.</li>
                 <li><strong>Nobody else.</strong> We do not share, sell, or analyse your data, and we do not use it to train any system. We only hand data to authorities when the law requires it.</li>
                 </ul>
             </section>
 
             <section class="legal-section" id="what-the-encryption-does-and-does-not-do">
                 <h2>What the encryption does and does not do</h2>
-                <p>Encryption on disk protects against a stolen or discarded disk. It does <strong>not</strong> protect against someone who gets full access to the running server, because the master key lives on that server. Deletion removes files in the normal way; we cannot promise that traces are physically wiped from the storage hardware.</p>
+                <p>Encryption on disk protects against a stolen or discarded disk. It does <strong>not</strong> protect against someone who gets full access to the running servers, because the master key lives on that server. Deletion removes files in the normal way; we cannot promise that traces are physically wiped from the storage hardware.</p>
             </section>
 
             <section class="legal-section" id="cookies-and-tracking">
@@ -117,6 +117,8 @@
             <a href="/terms.html">Terms of Service</a>
             <a href="/privacy.html">Privacy Policy</a>
             <a href="/data-processing.html">Data Processing</a>
+            <a href="/legal-notice.html">Legal Notice</a>
+            <a href="https://github.com/cns-studios/ILoveConversion">Source</a>
         </footer>
     </div>
 </body>

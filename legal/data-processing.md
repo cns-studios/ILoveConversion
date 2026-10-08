@@ -1,17 +1,17 @@
 # How ILC handles your data
 
-Version 2.1 · Oct 5th, 2026 · This is a summary. The legally binding details are in the [Privacy Policy](/privacy).
+Version 2.1 · Oct 5, 2026 · This is a summary. The legally binding details are in the [Privacy Policy](/privacy).
 
 ## Two modes
 
-**Local mode (recommended).** Everything happens in your browser. Your files never leave your device, and nothing about them is sent to our server. If you can use local mode, use it.
+**Local mode (recommended).** Everything happens in your browser. Your files never leave your device, and nothing about them is sent to our servers. If you can use local mode, use it.
 
-**Online mode.** Your file is uploaded to our server, converted there, and sent back to you. It is for conversions that your browser cannot do. Here is exactly what happens.
+**Online mode.** Your file is uploaded to our servers, converted there, and sent back to you. It is for conversions that your browser cannot do. Here is exactly what happens.
 
 ## What happens to your file in online mode
 
 1. **Upload.** Your browser sends the file to our site. It travels through Cloudflare, a US company that protects the site and can technically see the traffic passing through (see "Who can see what" below).
-2. **Encryption.** Our server encrypts the file as it arrives and saves it on its disk. Each file has its own key.
+2. **Encryption.** Our servers encrypts the file as it arrives and saves it on its disk. Each file has its own key.
 3. **Processing.** A worker program decrypts the file in the server's memory (RAM, not disk), converts it with standard tools (ffmpeg, Ghostscript, image tools, and our own background-removal component), and encrypts the result.
 4. **Cleanup of the original.** As soon as the conversion has finished or failed, your uploaded file and the temporary working copy are deleted.
 5. **Download.** You download the result. The server decrypts it on the fly while sending it to you.
@@ -33,12 +33,12 @@ We keep no accounts, no profiles, no advertising data, and no backups of your fi
 
 - **You.** Your files, always.
 - **Cloudflare.** Because all traffic goes through Cloudflare, it can technically see traffic in transit, including uploaded files and your IP address. It is bound by a data processing agreement. In local mode, it only sees that you loaded the page.
-- **Us (the operators).** Technically we can access our own server and could decrypt files. We do not look at your files. We would only do so to fix a technical fault or to follow up a specific report of illegal content.
+- **Us (the operators).** Technically we can access our own servers and could decrypt files. We do not look at your files. We would only do so to fix a technical fault or to follow up a specific report of illegal content.
 - **Nobody else.** We do not share, sell, or analyse your data, and we do not use it to train any system. We only hand data to authorities when the law requires it.
 
 ## What the encryption does and does not do
 
-Encryption on disk protects against a stolen or discarded disk. It does **not** protect against someone who gets full access to the running server, because the master key lives on that server. Deletion removes files in the normal way; we cannot promise that traces are physically wiped from the storage hardware.
+Encryption on disk protects against a stolen or discarded disk. It does **not** protect against someone who gets full access to the running servers, because the master key lives on that server. Deletion removes files in the normal way; we cannot promise that traces are physically wiped from the storage hardware.
 
 ## Cookies and tracking
 

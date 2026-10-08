@@ -1,6 +1,6 @@
 # Terms of Service - ILC
 
-Version 2.1 · Last updated: Oct 5th, 2026
+Version 2.1 · Last updated: Oct 5, 2026
 
 ## 1. Who provides ILC
 

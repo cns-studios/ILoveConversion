@@ -1,6 +1,6 @@
 # Privacy Policy - ILC
 
-Version 2.1 · Last updated: Oct 5th, 2026
+Version 2.1 · Last updated: Oct 5, 2026
 
 ## 1. Who is responsible
 
@@ -16,14 +16,14 @@ ILC is a free, non-commercial project of CNS Studios, a team of developers. CNS 
 ## 2. Short version
 
 - **Local mode:** your files never leave your device. We receive nothing.
-- **Online mode:** your file is uploaded, converted on our own server in Germany, and deleted automatically within about an hour.
+- **Online mode:** your file is uploaded, converted on our own servers in Germany, and deleted automatically within about an hour.
 - No tracking, no analytics scripts, no third-party code on the site.
 - All traffic passes through Cloudflare, which can technically see it (section 6).
 - We do not sell data, build profiles, or use your files for anything other than converting them.
 
 ## 3. Local mode
 
-In local mode, conversion runs entirely inside your browser. Your files are not uploaded, and no file content or filename is sent to our server. Like any website visit, loading the page itself involves your IP address (sections 5 and 6). Local mode loads no third-party resources.
+In local mode, conversion runs entirely inside your browser. Your files are not uploaded, and no file content or filename is sent to our servers. Like any website visit, loading the page itself involves your IP address (sections 5 and 6). Local mode loads no third-party resources.
 
 ## 4. Online mode
 
@@ -39,11 +39,11 @@ Before using online mode, you must accept the Terms of Service and this Privacy 
 
 **Filenames** can contain personal information. They are stored only in the job record and are not written to logs.
 
-**Your file content.** Processing is fully automated. We do not open, read, analyse, or share your files, and we do not use them to train anything. Technically we have access to our own server and could decrypt files. We will only look at a file where that is strictly necessary to fix a technical fault or to investigate a specific report of illegal content.
+**Your file content.** Processing is fully automated. We do not open, read, analyse, or share your files, and we do not use them to train anything. Technically we have access to our own servers and could decrypt files. We will only look at a file where that is strictly necessary to fix a technical fault or to investigate a specific report of illegal content.
 
-**Encryption.** Files are encrypted on the server's disk (AES-256-GCM, with a separate key per job). They exist unencrypted only in the server's memory (RAM) during processing. This protects against loss or theft of the disk. It does not protect against someone who has full access to the running server, because the master key is stored on that server. We currently do not have any other way of processing files without decrypting them, due to technical limitations.
+**Encryption.** Files are encrypted on the server's disk (AES-256-GCM, with a separate key per job). They exist unencrypted only in the server's memory (RAM) during processing. This protects against loss or theft of the disk. It does not protect against someone who has full access to the running servers, because the master key is stored on that server. We currently do not have any other way of processing files without decrypting them, due to technical limitations.
 
-**Special categories and third-party data.** You may upload files that contain sensitive information or other people's personal data. The server only processes them technically and does not evaluate their content. You are responsible for having the right to upload them (see the Terms of Service).
+**Special categories and third-party data.** You may upload files that contain sensitive information or other people's personal data. The servers only processes them technically and does not evaluate their content. You are responsible for having the right to upload them (see the Terms of Service).
 
 ## 5. Why we process IP addresses
 
@@ -51,7 +51,7 @@ Your IP address is needed to deliver the site and to rate-limit requests. Withou
 
 ## 6. Cloudflare
 
-All traffic to ILC passes through the network of Cloudflare, Inc. (USA), which acts as a protective and delivery layer in front of our server. This covers page loads, local-mode code, and online-mode uploads and downloads.
+All traffic to ILC passes through the network of Cloudflare, Inc. (USA), which acts as a protective and delivery layer in front of our servers. This covers page loads, local-mode code, and online-mode uploads and downloads.
 
 - Cloudflare ends the encrypted connection (TLS) at its servers and forwards the traffic to ours. **This means Cloudflare can technically see traffic in transit, including files uploaded in online mode and your IP address.** In local mode, Cloudflare only sees the page being loaded, not your files.
 - Cloudflare processes this data on our behalf under a data processing agreement (Art. 28 GDPR). It also applies rate limiting for us and provides basic traffic statistics. For its own security and network operation, Cloudflare processes some data as an independent controller. See Cloudflare's privacy policy for details.
@@ -66,7 +66,7 @@ Cloudflare, Inc. is based in the USA and processes traffic at data centres close
 
 ## 8. Cookies and browser storage
 
-We do not set cookies. Your browser stores your acceptance of the Terms and this Policy locally on your device. This is strictly necessary to provide the function you requested, so no consent is needed (§ 25(2) no. 2 TDDDG). It is never sent to our server for tracking. Cloudflare may set strictly necessary security cookies.
+We do not set cookies. Your browser stores your acceptance of the Terms and this Policy locally on your device. This is strictly necessary to provide the function you requested, so no consent is needed (§ 25(2) no. 2 TDDDG). It is never sent to our servers for tracking. Cloudflare may set strictly necessary security cookies.
 
 ## 9. Automated decisions
 
