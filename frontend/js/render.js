@@ -53,6 +53,14 @@ export function renderFile(item) {
             renderDone(item);
             break;
     }
+    refreshDownloadAllButton(item.tool);
+}
+
+function refreshDownloadAllButton(tool) {
+    if (!tool?.refs?.downloadAll) return;
+    const done = tool.files.filter((f) => f.status === 'done' && !f.removed);
+    tool.refs.downloadAll.classList.toggle('hidden', done.length === 0);
+    tool.refs.downloadAll.textContent = done.length > 1 ? `Download all (${done.length})` : 'Download all';
 }
 
 function renderDone(item) {
@@ -85,7 +93,7 @@ function renderDone(item) {
         ? job.output_filename.substring(job.output_filename.lastIndexOf('.'))
         : '';
     download.href = `/api/jobs/${item.jobId}/download`;
-    download.setAttribute('download', baseName + '-iloveconversion' + outExt);
+    download.setAttribute('download', baseName + outExt);
 }
 
 function renderLocalDone(item) {
@@ -114,5 +122,5 @@ function renderLocalDone(item) {
     const ext = kept ? item.ext : format;
     if (!item.objectUrl) item.objectUrl = URL.createObjectURL(blob);
     download.href = item.objectUrl;
-    download.setAttribute('download', `${baseName}-iloveconversion.${ext}`);
+    download.setAttribute('download', `${baseName}.${ext}`);
 }

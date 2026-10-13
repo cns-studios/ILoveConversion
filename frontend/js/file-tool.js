@@ -68,6 +68,7 @@ export function createFileTool(mode, panel) {
     });
     refs.action.addEventListener('click', () => startPending(tool));
     refs.clear.addEventListener('click', () => clearAll(tool));
+    refs.downloadAll.addEventListener('click', () => downloadAll(tool));
     refs.cloudConfirm.addEventListener('click', (e) => {
         e.stopPropagation();
         confirmCloud(tool);
@@ -129,7 +130,23 @@ export function refresh(tool) {
 
     tool.refs.files.classList.toggle('hidden', tool.files.length === 0);
     tool.refs.count.textContent = `${tool.files.length} ${tool.files.length === 1 ? 'file' : 'files'}`;
+    refreshDownloadAll(tool);
     updateBusy();
+}
+
+export function refreshDownloadAll(tool) {
+    const done = tool.files.filter((f) => f.status === 'done' && !f.removed);
+    const btn = tool.refs.downloadAll;
+    if (!btn) return;
+    btn.classList.toggle('hidden', done.length === 0);
+    btn.textContent = done.length > 1 ? `Download all (${done.length})` : 'Download all';
+}
+
+function downloadAll(tool) {
+    const done = tool.files.filter((f) => f.status === 'done' && !f.removed && f.el?.download?.href);
+    done.forEach((item, i) => {
+        setTimeout(() => item.el.download.click(), i * 300);
+    });
 }
 
 function setInert(el, inert) {
@@ -140,6 +157,7 @@ function setInert(el, inert) {
 function addFileRow(tool, file, ext, category, order = 0) {
     const item = {
         id: tool.nextId++,
+        tool,
         file,
         ext,
         category,
