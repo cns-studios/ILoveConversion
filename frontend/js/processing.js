@@ -5,6 +5,9 @@ import { renderFile, setError } from './render.js';
 import { state } from './state.js';
 import { uploadFile } from './upload.js';
 
+// Consecutive failed status checks tolerated before giving up (about 3 minutes at POLL_INTERVAL 2s).
+const MAX_POLL_FAILURES = 90;
+
 export function pump(tool) {
     if (!tool.uploading) {
         const next = tool.files.find((f) => f.status === 'waiting' && f.backend === 'online');
@@ -78,6 +81,7 @@ async function upload(tool, item) {
 
 function startPolling(item) {
     stopPolling(item);
+    item.pollFailures = 0;
     item.pollTimer = setInterval(() => pollJob(item), POLL_INTERVAL);
 }
 
@@ -95,11 +99,19 @@ async function pollJob(item) {
     try {
         const res = await fetch(`/api/jobs/${item.jobId}`);
         if (!item.pollTimer) return;
-        if (!res.ok) {
+        if (res.status >= 500 || res.status === 429) {
+            // The server (or its database) is restarting; the job lives on, so keep asking.
+            if (++item.pollFailures >= MAX_POLL_FAILURES) {
+                const err = await res.json().catch(() => ({}));
+                stopPolling(item);
+                setError(item, err.error || `Status check failed (HTTP ${res.status})`);
+            }
+        } else if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             stopPolling(item);
             setError(item, err.error || `Status check failed (HTTP ${res.status})`);
         } else {
+            item.pollFailures = 0;
             const job = await res.json();
             switch (job.status) {
                 case 'pending':
@@ -121,6 +133,7 @@ async function pollJob(item) {
         }
         renderFile(item);
     } catch (e) {
+        // Network error: same as a 5xx, the next tick retries.
     } finally {
         item.polling = false;
     }
