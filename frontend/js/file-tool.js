@@ -8,6 +8,7 @@ import { collapseOut, reducedMotion, updateBusy } from './motion.js';
 import { buildOptions } from './options.js';
 import { pump, stopPolling } from './processing.js';
 import { renderFile } from './render.js';
+import { deleteJob } from './upload.js';
 
 export function createFileTool(mode, panel) {
     panel.appendChild($('#tpl-file-tool').content.cloneNode(true));
@@ -149,6 +150,33 @@ function downloadAll(tool) {
     });
 }
 
+// A download is plain navigation, so a server that is restarting would leave the browser on a
+// raw error page. Check the job first and wait out a short outage; then let the click through.
+async function guardDownload(e, item) {
+    if (item.downloadChecked) {
+        item.downloadChecked = false;
+        return;
+    }
+    const link = e.currentTarget;
+    if (!item.jobId || !link.href) return;
+    e.preventDefault();
+    const deadline = Date.now() + 60 * 1000;
+    for (let attempt = 1; ; attempt++) {
+        try {
+            const res = await fetch(`/api/jobs/${item.jobId}`);
+            if (res.ok || (res.status < 500 && res.status !== 429)) break;
+        } catch (err) {
+        }
+        if (Date.now() >= deadline || item.removed) {
+            showAlert('The server is not reachable right now. Please try the download again in a moment.');
+            return;
+        }
+        await new Promise((r) => setTimeout(r, Math.min(500 * 2 ** (attempt - 1), 5000)));
+    }
+    item.downloadChecked = true;
+    link.click();
+}
+
 function setInert(el, inert) {
     if (inert) el.setAttribute('inert', '');
     else el.removeAttribute('inert');
@@ -184,6 +212,7 @@ function addFileRow(tool, file, ext, category, order = 0) {
     $('.file-name', row).textContent = file.name;
     $('.file-name', row).title = file.name;
     $('.btn-square', row).addEventListener('click', () => removeFile(tool, item));
+    $('.btn-download', row).addEventListener('click', (e) => guardDownload(e, item));
     if (!reducedMotion.matches && row.animate) {
         row.animate([
             { opacity: 0, transform: 'translateY(8px)' },
@@ -208,7 +237,7 @@ function disposeFile(item) {
     if (item.xhr) item.xhr.abort();
     stopPolling(item);
     if (item.jobId) {
-        fetch(`/api/jobs/${item.jobId}`, { method: 'DELETE' }).catch(() => {});
+        deleteJob(item.jobId);
     }
 }
 

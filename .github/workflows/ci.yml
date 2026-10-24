@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [main, kubernetes-migration]
+    branches: [main]
     tags: ["v*"]
   pull_request:
 
@@ -66,7 +66,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Compute tag
         id: tag
-        run: echo "tag=main-${GITHUB_SHA::7}-$(date +%s)" >> "$GITHUB_OUTPUT"
+        run: echo "tag=main-${GITHUB_SHA::7}-$(date -d '${{ github.run_started_at }}' +%s)" >> "$GITHUB_OUTPUT"
       - id: meta
         uses: docker/metadata-action@v5
         with:
@@ -74,7 +74,7 @@ jobs:
           # Immutable tag per commit: deployments pin this, never a moving tag.
           tags: |
             type=raw,value=${{ github.sha }}
-            type=raw,value=${{ steps.tag.outputs.tag }}
+            type=raw,value=${{ steps.tag.outputs.tag }},enable=${{ github.ref == 'refs/heads/main' }}
       - uses: docker/build-push-action@v6
         with:
           context: .

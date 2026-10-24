@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -58,13 +59,14 @@ func (w *worker) processJob(jobCtx context.Context, workerID int, c *database.Cl
 
 	outputName := storage.OutputName(job.ID, c.LockToken)
 	outputSize, outputFilename, err := w.execute(ctx, workerID, c, outputName)
-	stopHeartbeat()
 
-	// DB writes below must survive the job context being cancelled by a drain.
-	dbCtx, dbCancel := context.WithTimeout(context.WithoutCancel(jobCtx), 15*time.Second)
-	defer dbCancel()
+	// The heartbeat keeps running while the result is written: with the database briefly down the
+	// lease must not lapse, or another worker would redo a job that is already done. Writes must
+	// also survive the job context being cancelled by a drain.
+	dbCtx := context.WithoutCancel(jobCtx)
 
 	res := w.finish(ctx, dbCtx, workerID, c, outputName, outputFilename, outputSize, err)
+	stopHeartbeat()
 
 	if res != outcomeCompleted {
 		// Whoever won the fenced update owns its own file; ours is a loser or a failure.
@@ -94,9 +96,12 @@ func (w *worker) heartbeat(ctx context.Context, cancel context.CancelCauseFunc, 
 		err := w.db.ExtendJobLock(beatCtx, jobID, token, w.cfg.JobLease)
 		beatCancel()
 
+		// A failed beat still proves this loop is alive; liveness is about the process, not the
+		// database. Killing a healthy worker for a database outage would only add churn.
+		w.tick()
+
 		switch {
 		case err == nil:
-			w.tick()
 		case errors.Is(err, database.ErrLockLost):
 			log.Printf("[worker] lock lost for job %s, aborting attempt", jobID)
 			cancel(errLockLost)
@@ -141,6 +146,11 @@ func (w *worker) execute(ctx context.Context, workerID int, c *database.Claimed,
 
 	// Plaintext exists only from here on, and only in tmpfs.
 	if err := filecrypto.DecryptFile(key, w.store.InputPath(job.ID), tmpInput); err != nil {
+		var pathErr *fs.PathError
+		if errors.As(err, &pathErr) {
+			// The shared volume is unreachable or hiccuping; a retry can succeed.
+			return 0, "", fmt.Errorf("read input: %w", err)
+		}
 		return 0, "", permanent("Failed to decrypt input: %v", err)
 	}
 
@@ -187,7 +197,9 @@ func (w *worker) finish(ctx, dbCtx context.Context, workerID int, c *database.Cl
 		return outcomeLockLost
 
 	case execErr == nil:
-		err := w.db.CompleteJob(dbCtx, job.ID, c.LockToken, outputName, outputFilename, outputSize)
+		err := dbRetry(dbCtx, func(ctx context.Context) error {
+			return w.db.CompleteJob(ctx, job.ID, c.LockToken, outputName, outputFilename, outputSize)
+		})
 		if errors.Is(err, database.ErrLockLost) {
 			w.metrics.LockLost.Inc()
 			return outcomeLockLost
@@ -201,7 +213,7 @@ func (w *worker) finish(ctx, dbCtx context.Context, workerID int, c *database.Cl
 
 	case cause != nil && ctx.Err() != nil && !errors.Is(cause, context.DeadlineExceeded):
 		// Drain: hand the job back without counting an attempt.
-		if err := w.db.ReleaseJob(dbCtx, job.ID, c.LockToken); err != nil && !errors.Is(err, database.ErrLockLost) {
+		if err := dbRetry(dbCtx, func(ctx context.Context) error { return w.db.ReleaseJob(ctx, job.ID, c.LockToken) }); err != nil && !errors.Is(err, database.ErrLockLost) {
 			log.Printf("[worker-%d] release error for job %s: %v", workerID, job.ID, err)
 		}
 		return outcomeReleased
@@ -210,7 +222,7 @@ func (w *worker) finish(ctx, dbCtx context.Context, workerID int, c *database.Cl
 	var perm *permanentError
 	if errors.As(execErr, &perm) {
 		msg := truncate(perm.msg)
-		if err := w.db.FailJob(dbCtx, job.ID, c.LockToken, msg); err != nil {
+		if err := dbRetry(dbCtx, func(ctx context.Context) error { return w.db.FailJob(ctx, job.ID, c.LockToken, msg) }); err != nil {
 			return w.lostOrLog(workerID, job.ID, err)
 		}
 		w.metrics.JobFailures.WithLabelValues(job.Operation, "failed").Inc()
@@ -219,8 +231,12 @@ func (w *worker) finish(ctx, dbCtx context.Context, workerID int, c *database.Cl
 	}
 
 	log.Printf("[worker-%d] ✗ job %s attempt failed: %v", workerID, job.ID, execErr)
-	status, err := w.db.RetryOrFail(dbCtx, job.ID, c.LockToken, truncate(execErr.Error()),
-		w.cfg.MaxRetriesFor(job.Operation), w.cfg.RetryBackoffBase, w.cfg.RetryBackoffCap)
+	var status string
+	err := dbRetry(dbCtx, func(ctx context.Context) (err error) {
+		status, err = w.db.RetryOrFail(ctx, job.ID, c.LockToken, truncate(execErr.Error()),
+			w.cfg.MaxRetriesFor(job.Operation), w.cfg.RetryBackoffBase, w.cfg.RetryBackoffCap)
+		return err
+	})
 	if err != nil {
 		return w.lostOrLog(workerID, job.ID, err)
 	}
@@ -231,6 +247,34 @@ func (w *worker) finish(ctx, dbCtx context.Context, workerID int, c *database.Cl
 	}
 	w.metrics.JobFailures.WithLabelValues(job.Operation, "retried").Inc()
 	return outcomeRetried
+}
+
+// dbRetryWindow bounds how long a finished attempt waits for the database to come back. It is
+// long because the alternative is redoing the whole job; the lease cannot be lost meanwhile,
+// since nobody can claim without the database and the heartbeat resumes with it.
+const dbRetryWindow = 10 * time.Minute
+
+// dbRetry runs a fenced write, retrying while the database is unreachable. A lost lock is an
+// answer, not an outage, and returns at once.
+func dbRetry(ctx context.Context, fn func(context.Context) error) error {
+	deadline := time.Now().Add(dbRetryWindow)
+	delay := time.Second
+	for {
+		attemptCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		err := fn(attemptCtx)
+		cancel()
+		if err == nil || errors.Is(err, database.ErrLockLost) || time.Now().After(deadline) {
+			return err
+		}
+		log.Printf("[worker] database write failed (retrying in %v): %v", delay, err)
+		sleep(ctx, delay)
+		if ctx.Err() != nil {
+			return err
+		}
+		if delay < 10*time.Second {
+			delay *= 2
+		}
+	}
 }
 
 func (w *worker) lostOrLog(workerID int, jobID string, err error) outcome {

@@ -5,8 +5,8 @@ import { renderFile, setError } from './render.js';
 import { state } from './state.js';
 import { uploadFile } from './upload.js';
 
-// Consecutive failed status checks tolerated before giving up (about 3 minutes at POLL_INTERVAL 2s).
-const MAX_POLL_FAILURES = 90;
+// Consecutive failed status checks tolerated before giving up: the same 10 minutes uploads wait.
+const MAX_POLL_FAILURES = (10 * 60 * 1000) / POLL_INTERVAL;
 
 export function pump(tool) {
     if (!tool.uploading) {
@@ -133,7 +133,12 @@ async function pollJob(item) {
         }
         renderFile(item);
     } catch (e) {
-        // Network error: same as a 5xx, the next tick retries.
+        // Network error: counts like a 5xx, the next tick retries.
+        if (++item.pollFailures >= MAX_POLL_FAILURES && item.pollTimer) {
+            stopPolling(item);
+            setError(item, 'Lost connection to the server. Please try again.');
+            renderFile(item);
+        }
     } finally {
         item.polling = false;
     }
