@@ -64,12 +64,17 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute tag
+        id: tag
+        run: echo "tag=main-${GITHUB_SHA::7}-$(date +%s)" >> "$GITHUB_OUTPUT"
       - id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}/${{ matrix.name }}
           # Immutable tag per commit: deployments pin this, never a moving tag.
-          tags: type=raw,value=${{ github.sha }}
+          tags: |
+            type=raw,value=${{ github.sha }}
+            type=raw,value=${{ steps.tag.outputs.tag }}
       - uses: docker/build-push-action@v6
         with:
           context: .
