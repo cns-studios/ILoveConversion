@@ -18,7 +18,7 @@ Report privately through GitHub:
 
 Please include, where possible:
 
-- The affected component (API, worker, rembg service, nginx config, frontend, Docker setup)
+- The affected component (API, worker, rembg service, frontend, Docker setup)
 - Steps to reproduce or a proof of concept
 - The impact you expect (for example data exposure, code execution, denial of service)
 - The commit or date you tested against
@@ -38,7 +38,7 @@ In scope:
 - The Go API and worker (`cmd/`, `internal/`)
 - The encryption and key-derivation code (`internal/crypto`)
 - The rembg service (`rembg-service/`)
-- The frontend, nginx configuration and Docker setup in this repository
+- The frontend and Docker setup in this repository
 - The hosted instance at <https://ilc.cns-studios.com>, for issues in this project's own code and configuration
 
 Examples of issues we are interested in: access to other users' files or jobs, weaknesses in the encryption at rest, path traversal, upload handling flaws, command injection into `ffmpeg`, `ghostscript`, `qpdf` or `libvips`, SSRF, rate-limit bypass, and unencrypted data leaking outside the tmpfs sandbox.

@@ -1,11 +1,11 @@
-FROM python:3.11-slim-bookworm
+FROM python:3.11.11-slim-bookworm@sha256:081075da77b2b55c23c088251026fb69a7b2bf92471e491ff5fd75c192fd38e5
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 
-RUN groupadd -r appgroup && \
-    useradd -r -g appgroup -m -d /home/appuser appuser
+RUN groupadd -g 10001 app && \
+    useradd -r -u 10001 -g app -m -d /home/app app
 
 WORKDIR /app
 
@@ -25,9 +25,9 @@ print('Model + numba ready')"
 
 COPY rembg-service/app.py .
 
-RUN chown -R appuser:appgroup /app /home/appuser
+RUN chown -R 10001:10001 /app /home/app
 
-USER appuser
+USER 10001:10001
 
 EXPOSE 5000
 

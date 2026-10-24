@@ -140,6 +140,13 @@ type Job struct {
 	StartedAt      sql.NullTime
 	CompletedAt    sql.NullTime
 	ExpiresAt      time.Time
+
+	QueuedAt    sql.NullTime
+	RunAfter    time.Time
+	LockedUntil sql.NullTime
+	LockToken   sql.NullString
+	KeyID       string
+	OutputName  sql.NullString
 }
 
 func (j *Job) InputExt() string {

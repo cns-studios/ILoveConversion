@@ -2,32 +2,49 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"fileforge/internal/config"
 	"fileforge/internal/database"
-	"fileforge/internal/queue"
+	"fileforge/internal/metrics"
 	"fileforge/internal/storage"
+	"fileforge/internal/tmpfs"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
 type app struct {
-	cfg   *config.Config
-	db    *database.DB
-	queue *queue.Queue
-	store *storage.Storage
+	cfg     *config.Config
+	db      *database.DB
+	store   *storage.Storage
+	metrics *metrics.Metrics
+
+	// bg outlives requests; background assemblies run under it and are waited for on shutdown.
+	bg         context.Context
+	assembling sync.WaitGroup
+}
+
+func (a *app) backgroundCtx() context.Context {
+	if a.bg == nil {
+		return context.Background()
+	}
+	return a.bg
 }
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	migrateOnly := flag.Bool("migrate-only", false, "apply database migrations and exit")
+	flag.Parse()
+
+	log.SetFlags(log.LstdFlags)
 	log.Println("FileForge API starting...")
 
 	cfg, err := config.Load()
@@ -43,15 +60,17 @@ func main() {
 	}
 	defer db.Close()
 
-	if err := db.Migrate(context.Background()); err != nil {
-		log.Fatalf("Database error: %v", err)
+	if *migrateOnly {
+		if err := db.Migrate(context.Background()); err != nil {
+			log.Fatalf("Migration error: %v", err)
+		}
+		log.Println("Migrations complete")
+		return
 	}
 
-	q, err := queue.New(cfg.RedisAddr(), cfg.RedisPoolSize)
-	if err != nil {
-		log.Fatalf("Redis error: %v", err)
+	if err := requireTmpfs(os.TempDir()); err != nil {
+		log.Fatalf("%v", err)
 	}
-	defer q.Close()
 
 	store, err := storage.New(cfg.StoragePath)
 	if err != nil {
@@ -60,17 +79,32 @@ func main() {
 	log.Printf("Storage ready at %s", cfg.StoragePath)
 
 	a := &app{
-		cfg:   cfg,
-		db:    db,
-		queue: q,
-		store: store,
+		cfg:     cfg,
+		db:      db,
+		store:   store,
+		metrics: metrics.New(),
 	}
+	a.metrics.RegisterQueue(db)
 
 	r := a.buildRouter()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	bgCtx, bgCancel := context.WithCancel(context.Background())
+	defer bgCancel()
+	a.bg = bgCtx
+	go a.resumeLoop(ctx)
 	go a.startCleanup(ctx)
+
+	// Metrics stay off the public listener: /metrics is for the cluster network only.
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", a.metrics.Handler())
+	metricsSrv := &http.Server{Addr: cfg.MetricsAddr, Handler: metricsMux, ReadHeaderTimeout: 5 * time.Second}
+	go func() {
+		if err := metricsSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Metrics listener error: %v", err)
+		}
+	}()
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.APIPort),
@@ -99,9 +133,19 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
 
+	metricsSrv.Shutdown(shutdownCtx)
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Fatalf("Shutdown error: %v", err)
 	}
+	// Let running assemblies finish within the grace period; the rest is resumed by other replicas.
+	waited := make(chan struct{})
+	go func() { a.assembling.Wait(); close(waited) }()
+	select {
+	case <-waited:
+	case <-shutdownCtx.Done():
+		log.Println("Assemblies still running at shutdown; they will be resumed elsewhere")
+	}
+	bgCancel()
 	log.Println("API server stopped.")
 }
 
@@ -109,12 +153,12 @@ func (a *app) buildRouter() chi.Router {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
+	r.Use(requestLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Compress(5))
 
 	r.Route("/api", func(r chi.Router) {
+		r.Get("/live", a.handleLive)
 		r.Get("/health", a.handleHealth)
 		r.Get("/formats", a.handleFormats)
 		r.Get("/admin/stats", a.handleAdminStats)
@@ -135,54 +179,20 @@ func (a *app) buildRouter() chi.Router {
 		})
 	})
 
+	r.Handle("/*", newStaticSite())
+
 	return r
 }
 
-func (a *app) startCleanup(ctx context.Context) {
-	interval := time.Duration(a.cfg.CleanupIntervalMin) * time.Minute
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	log.Printf("[cleanup] Running every %v", interval)
-
-	a.runCleanup()
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Println("[cleanup] Stopped")
-			return
-		case <-ticker.C:
-			a.runCleanup()
+// requireTmpfs enforces that anything the process spills to its temp directory lands in memory.
+// ALLOW_DISK_TMP=true opts out, for development only.
+func requireTmpfs(dir string) error {
+	if err := tmpfs.Check(dir); err != nil {
+		if os.Getenv("ALLOW_DISK_TMP") == "true" {
+			log.Printf("WARNING: %v; plaintext may touch disk (ALLOW_DISK_TMP=true)", err)
+			return nil
 		}
+		return fmt.Errorf("%w: mount a memory-backed volume there or set ALLOW_DISK_TMP=true for development", err)
 	}
-}
-
-func (a *app) runCleanup() {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	ids, err := a.db.CleanupExpiredJobs(ctx)
-	if err != nil {
-		log.Printf("[cleanup] expired jobs error: %v", err)
-	} else if len(ids) > 0 {
-		for _, id := range ids {
-			a.store.DeleteJobFiles(id)
-		}
-		log.Printf("[cleanup] Removed %d expired jobs + files", len(ids))
-	}
-
-	removed, err := a.db.CleanupInactiveSessions(ctx)
-	if err != nil {
-		log.Printf("[cleanup] inactive sessions error: %v", err)
-	} else if removed > 0 {
-		log.Printf("[cleanup] Removed %d inactive sessions", removed)
-	}
-
-	n, err := a.db.ResetHourlyCounts(ctx)
-	if err != nil {
-		log.Printf("[cleanup] reset hourly counts error: %v", err)
-	} else if n > 0 {
-		log.Printf("[cleanup] Reset hourly counts for %d sessions", n)
-	}
+	return nil
 }

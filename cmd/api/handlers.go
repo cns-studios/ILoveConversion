@@ -1,24 +1,36 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
 
-func (a *app) handleHealth(w http.ResponseWriter, r *http.Request) {
-	dbErr := a.db.Ping(r.Context())
-	qErr := a.queue.Ping(r.Context())
+// handleLive has no dependencies: it only proves the process is serving requests.
+func (a *app) handleLive(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
 
-	if dbErr != nil || qErr != nil {
+// handleHealth checks what this replica needs to do real work: the database and a writable
+// storage volume.
+func (a *app) handleHealth(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	dbErr := a.db.Ping(ctx)
+	storeErr := a.store.Writable()
+
+	if dbErr != nil || storeErr != nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
 			"status":   "degraded",
 			"database": errStr(dbErr),
-			"redis":    errStr(qErr),
+			"storage":  errStr(storeErr),
 		})
 		return
 	}
@@ -92,13 +104,6 @@ func (a *app) handleAdminStats(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[admin] stats error: %v", err)
 		writeError(w, http.StatusInternalServerError, "Failed to fetch stats")
 		return
-	}
-
-	stats.StorageUsedMB = a.store.UsedMB()
-
-	queueLen, err := a.queue.Length(r.Context())
-	if err == nil {
-		stats.QueueLength = int(queueLen)
 	}
 
 	writeJSON(w, http.StatusOK, stats)

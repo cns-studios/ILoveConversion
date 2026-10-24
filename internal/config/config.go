@@ -3,9 +3,13 @@ package config
 import (
 	"encoding/hex"
 	"fmt"
+	"net/netip"
 	"os"
 	"strconv"
+	"strings"
 	"time"
+
+	filecrypto "fileforge/internal/crypto"
 )
 
 type Config struct {
@@ -16,12 +20,15 @@ type Config struct {
 	DBUser     string
 	DBPassword string
 	DBName     string
+	DBSSLMode  string
 
-	RedisHost     string
-	RedisPort     int
-	RedisPoolSize int
+	Keys *filecrypto.KeyRing
 
-	MasterKey []byte
+	// TrustedProxies are the peers whose forwarding headers are believed. Empty means none.
+	TrustedProxies []netip.Prefix
+	// ClientIPHeader, if set (for example CF-Connecting-IP), is read from trusted peers
+	// before falling back to X-Forwarded-For.
+	ClientIPHeader string
 
 	RateLimitPerHour int
 	FlagThreshold    int
@@ -35,6 +42,14 @@ type Config struct {
 	RembgURL          string
 	TmpDir            string
 
+	JobLease         time.Duration
+	DrainTimeout     time.Duration
+	ClaimPoll        time.Duration
+	RetryBackoffBase time.Duration
+	RetryBackoffCap  time.Duration
+	WorkerHTTPAddr   string
+	MetricsAddr      string
+
 	Timeouts map[string]time.Duration
 
 	Retries map[string]int
@@ -42,13 +57,9 @@ type Config struct {
 
 func (c *Config) DSN() string {
 	return fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName,
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName, c.DBSSLMode,
 	)
-}
-
-func (c *Config) RedisAddr() string {
-	return fmt.Sprintf("%s:%d", c.RedisHost, c.RedisPort)
 }
 
 func (c *Config) TimeoutFor(operation string) time.Duration {
@@ -79,6 +90,20 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("ENCRYPTION_MASTER_KEY must be 64 hex chars (32 bytes), got %d bytes", len(masterKey))
 	}
 
+	oldKeys, err := filecrypto.ParseOldKeys(os.Getenv("ENCRYPTION_OLD_KEYS"))
+	if err != nil {
+		return nil, err
+	}
+	keys, err := filecrypto.NewKeyRing(os.Getenv("ENCRYPTION_KEY_ID"), masterKey, oldKeys)
+	if err != nil {
+		return nil, err
+	}
+
+	proxies, err := ParseTrustedProxies(os.Getenv("TRUSTED_PROXIES"))
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &Config{
 		APIPort: envInt("API_PORT", 3015),
 
@@ -87,12 +112,11 @@ func Load() (*Config, error) {
 		DBUser:     envStr("POSTGRES_USER", "ilc"),
 		DBPassword: envStr("POSTGRES_PASSWORD", ""),
 		DBName:     envStr("POSTGRES_DB", "ilc"),
+		DBSSLMode:  envStr("POSTGRES_SSLMODE", "disable"),
 
-		RedisHost:     envStr("REDIS_HOST", "redis"),
-		RedisPort:     envInt("REDIS_PORT", 6379),
-		RedisPoolSize: envInt("REDIS_POOL_SIZE", 10),
-
-		MasterKey:        masterKey,
+		Keys:             keys,
+		TrustedProxies:   proxies,
+		ClientIPHeader:   os.Getenv("CLIENT_IP_HEADER"),
 		RateLimitPerHour: envInt("RATE_LIMIT_PER_HOUR", 600),
 		FlagThreshold:    envInt("FLAG_THRESHOLD", 5000),
 
@@ -104,6 +128,14 @@ func Load() (*Config, error) {
 		WorkerConcurrency: envInt("WORKER_CONCURRENCY", 4),
 		RembgURL:          envStr("REMBG_URL", "http://rembg:5000"),
 		TmpDir:            envStr("TMP_DIR", "/tmp/processing"),
+
+		JobLease:         secDuration(envInt("JOB_LEASE_SECONDS", 60)),
+		DrainTimeout:     secDuration(envInt("DRAIN_TIMEOUT_SECONDS", 120)),
+		ClaimPoll:        time.Duration(envInt("CLAIM_POLL_MS", 1000)) * time.Millisecond,
+		RetryBackoffBase: secDuration(envInt("RETRY_BACKOFF_SECONDS", 10)),
+		RetryBackoffCap:  secDuration(envInt("RETRY_BACKOFF_MAX_SECONDS", 300)),
+		WorkerHTTPAddr:   envStr("WORKER_HTTP_ADDR", ":8081"),
+		MetricsAddr:      envStr("METRICS_ADDR", ":9090"),
 
 		Timeouts: map[string]time.Duration{
 			"image_convert":   secDuration(envInt("TIMEOUT_IMAGE_CONVERT", 120)),
@@ -132,8 +164,32 @@ func Load() (*Config, error) {
 	if cfg.CleanupIntervalMin < 1 {
 		return nil, fmt.Errorf("CLEANUP_INTERVAL_MINUTES must be at least 1")
 	}
+	if cfg.JobLease < 4*time.Second {
+		return nil, fmt.Errorf("JOB_LEASE_SECONDS must be at least 4 (the heartbeat runs at lease/4)")
+	}
 
 	return cfg, nil
+}
+
+// ParseTrustedProxies parses a comma-separated list of CIDRs or bare addresses.
+func ParseTrustedProxies(s string) ([]netip.Prefix, error) {
+	var out []netip.Prefix
+	for _, part := range strings.Split(s, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if p, err := netip.ParsePrefix(part); err == nil {
+			out = append(out, p.Masked())
+			continue
+		}
+		addr, err := netip.ParseAddr(part)
+		if err != nil {
+			return nil, fmt.Errorf("TRUSTED_PROXIES: %q is not a CIDR or IP address", part)
+		}
+		out = append(out, netip.PrefixFrom(addr.Unmap(), addr.Unmap().BitLen()))
+	}
+	return out, nil
 }
 
 func envStr(key, fallback string) string {

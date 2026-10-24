@@ -48,18 +48,18 @@ func (a *app) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !a.store.OutputExists(jobID) {
+	if !job.OutputName.Valid || !a.store.OutputExists(job.OutputName.String) {
 		writeError(w, http.StatusNotFound, "Output file not found (may have expired)")
 		return
 	}
 
-	key, err := filecrypto.DeriveKey(a.cfg.MasterKey, jobID)
+	key, err := a.cfg.Keys.JobKey(job.KeyID, jobID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Internal error")
 		return
 	}
 
-	encFile, err := a.store.OpenOutput(jobID)
+	encFile, err := a.store.OpenOutput(job.OutputName.String)
 	if err != nil {
 		log.Printf("[download] open error for %s: %v", jobID, err)
 		writeError(w, http.StatusInternalServerError, "Failed to read file")
