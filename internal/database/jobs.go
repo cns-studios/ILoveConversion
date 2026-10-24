@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"fileforge/internal/models"
@@ -19,17 +20,32 @@ type scanner interface {
 const jobColumns = `id, session_id, operation, status,
 	input_filename, output_filename, input_size, output_size,
 	original_name, params, file_nonce, error_message, retry_count,
-	created_at, started_at, completed_at, expires_at`
+	created_at, started_at, completed_at, expires_at,
+	queued_at, run_after, locked_until, lock_token, key_id, output_name`
+
+func prefixedJobColumns(alias string) string {
+	cols := strings.Split(jobColumns, ",")
+	for i, c := range cols {
+		cols[i] = alias + "." + strings.TrimSpace(c)
+	}
+	return strings.Join(cols, ", ")
+}
 
 func scanJob(s scanner) (*models.Job, error) {
+	return scanJobExtra(s)
+}
+
+// scanJobExtra scans the job columns followed by any extra destinations.
+func scanJobExtra(s scanner, extra ...interface{}) (*models.Job, error) {
 	var j models.Job
-	err := s.Scan(
+	dest := []interface{}{
 		&j.ID, &j.SessionID, &j.Operation, &j.Status,
 		&j.InputFilename, &j.OutputFilename, &j.InputSize, &j.OutputSize,
 		&j.OriginalName, &j.Params, &j.FileNonce, &j.ErrorMessage, &j.RetryCount,
 		&j.CreatedAt, &j.StartedAt, &j.CompletedAt, &j.ExpiresAt,
-	)
-	if err != nil {
+		&j.QueuedAt, &j.RunAfter, &j.LockedUntil, &j.LockToken, &j.KeyID, &j.OutputName,
+	}
+	if err := s.Scan(append(dest, extra...)...); err != nil {
 		return nil, err
 	}
 	return &j, nil
@@ -41,6 +57,7 @@ type CreateJobParams struct {
 	OriginalName string
 	InputSize    int64
 	Params       models.JobParams
+	KeyID        string
 }
 
 func (db *DB) CreateJob(ctx context.Context, p CreateJobParams, retentionHours int) (*models.Job, error) {
@@ -54,11 +71,11 @@ func (db *DB) CreateJob(ctx context.Context, p CreateJobParams, retentionHours i
 	expiresAt := time.Now().Add(time.Duration(retentionHours) * time.Hour)
 
 	row := db.pool.QueryRowContext(ctx, `
-		INSERT INTO jobs (id, session_id, operation, input_filename, input_size, original_name, params, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO jobs (id, session_id, operation, input_filename, input_size, original_name, params, expires_at, key_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING `+jobColumns,
 		jobID, p.SessionID, p.Operation, jobID,
-		p.InputSize, p.OriginalName, paramsJSON, expiresAt,
+		p.InputSize, p.OriginalName, paramsJSON, expiresAt, p.KeyID,
 	)
 
 	return scanJob(row)
@@ -75,59 +92,6 @@ func (db *DB) GetJob(ctx context.Context, jobID string) (*models.Job, error) {
 	return j, nil
 }
 
-func (db *DB) UpdateJobStarted(ctx context.Context, jobID string) error {
-	_, err := db.pool.ExecContext(ctx, `
-		UPDATE jobs SET status = 'processing', started_at = NOW()
-		WHERE id = $1
-	`, jobID)
-	if err != nil {
-		return fmt.Errorf("update job started %s: %w", jobID, err)
-	}
-	return nil
-}
-
-func (db *DB) UpdateJobCompleted(ctx context.Context, jobID, outputFilename string, outputSize int64) error {
-	_, err := db.pool.ExecContext(ctx, `
-		UPDATE jobs
-		SET status = 'completed',
-			output_filename = $2,
-			output_size = $3,
-			completed_at = NOW()
-		WHERE id = $1
-	`, jobID, outputFilename, outputSize)
-	if err != nil {
-		return fmt.Errorf("update job completed %s: %w", jobID, err)
-	}
-	return nil
-}
-
-func (db *DB) UpdateJobFailed(ctx context.Context, jobID, errorMsg string) error {
-	_, err := db.pool.ExecContext(ctx, `
-		UPDATE jobs
-		SET status = 'failed',
-			error_message = $2,
-			completed_at = NOW()
-		WHERE id = $1
-	`, jobID, errorMsg)
-	if err != nil {
-		return fmt.Errorf("update job failed %s: %w", jobID, err)
-	}
-	return nil
-}
-
-func (db *DB) IncrementRetryCount(ctx context.Context, jobID string) (int, error) {
-	var count int
-	err := db.pool.QueryRowContext(ctx, `
-		UPDATE jobs SET retry_count = retry_count + 1, status = 'pending'
-		WHERE id = $1
-		RETURNING retry_count
-	`, jobID).Scan(&count)
-	if err != nil {
-		return 0, fmt.Errorf("increment retry %s: %w", jobID, err)
-	}
-	return count, nil
-}
-
 func (db *DB) DeleteJob(ctx context.Context, jobID string) (bool, error) {
 	res, err := db.pool.ExecContext(ctx, `DELETE FROM jobs WHERE id = $1`, jobID)
 	if err != nil {
@@ -135,23 +99,4 @@ func (db *DB) DeleteJob(ctx context.Context, jobID string) (bool, error) {
 	}
 	n, _ := res.RowsAffected()
 	return n > 0, nil
-}
-
-func (db *DB) CleanupExpiredJobs(ctx context.Context) ([]string, error) {
-	rows, err := db.pool.QueryContext(ctx,
-		`DELETE FROM jobs WHERE expires_at < NOW() RETURNING id`)
-	if err != nil {
-		return nil, fmt.Errorf("cleanup expired jobs: %w", err)
-	}
-	defer rows.Close()
-
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return ids, fmt.Errorf("scan expired job id: %w", err)
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
 }

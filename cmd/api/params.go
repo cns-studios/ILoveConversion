@@ -12,9 +12,13 @@ import (
 )
 
 func parseAndValidateParams(r *http.Request, operation, inputExt string) (models.JobParams, error) {
+	return parseParams(r.FormValue, operation, inputExt)
+}
+
+func parseParams(formValue func(string) string, operation, inputExt string) (models.JobParams, error) {
 	var p models.JobParams
 
-	p.OutputFormat = normalizeExt(strings.TrimSpace(r.FormValue("output_format")))
+	p.OutputFormat = normalizeExt(strings.TrimSpace(formValue("output_format")))
 
 	switch operation {
 	case models.OpImageConvert, models.OpAudioConvert:
@@ -54,7 +58,7 @@ func parseAndValidateParams(r *http.Request, operation, inputExt string) (models
 		p.OutputFormat = "pdf"
 	}
 
-	if q := r.FormValue("quality"); q != "" {
+	if q := formValue("quality"); q != "" {
 		v, err := strconv.Atoi(q)
 		if err != nil || v < 1 || v > 100 {
 			return p, fmt.Errorf("quality must be between 1 and 100")
@@ -71,11 +75,11 @@ func parseAndValidateParams(r *http.Request, operation, inputExt string) (models
 		}
 	}
 
-	if r.FormValue("lossless") == "true" {
+	if formValue("lossless") == "true" {
 		p.Lossless = true
 	}
 
-	if d := r.FormValue("image_dpi"); d != "" {
+	if d := formValue("image_dpi"); d != "" {
 		v, err := strconv.Atoi(d)
 		if err != nil {
 			return p, fmt.Errorf("invalid image_dpi value")
@@ -89,7 +93,7 @@ func parseAndValidateParams(r *http.Request, operation, inputExt string) (models
 		p.ImageDPI = 150
 	}
 
-	if iq := r.FormValue("image_quality"); iq != "" {
+	if iq := formValue("image_quality"); iq != "" {
 		v, err := strconv.Atoi(iq)
 		if err != nil || v < 1 || v > 100 {
 			return p, fmt.Errorf("image_quality must be between 1 and 100")

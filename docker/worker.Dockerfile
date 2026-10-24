@@ -1,4 +1,4 @@
-FROM golang:1.22-bookworm AS builder
+FROM golang:1.22.12-bookworm@sha256:3d699e4d15d0f8f13c9195c0632a16702b8cbdece2955af1c23b37ae5d55a253 AS builder
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -16,9 +16,9 @@ COPY cmd/worker ./cmd/worker
 
 RUN mkdir -p /out && \
     CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
-    go build -ldflags="-s -w" -o /out/worker ./cmd/worker
+    go build -trimpath -ldflags="-s -w" -o /out/worker ./cmd/worker
 
-FROM debian:bookworm-slim
+FROM debian:bookworm-20250224-slim@sha256:12c396bd585df7ec21d5679bb6a83d4878bc4415ce926c9e5ea6426d23c60bdc
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -31,14 +31,16 @@ RUN apt-get update && \
         pngquant \
     && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+RUN groupadd -g 10001 app && useradd -r -u 10001 -g app -M -s /usr/sbin/nologin app
 
 WORKDIR /app
 COPY --from=builder /out/worker .
 
 RUN mkdir -p /app/storage/inputs /app/storage/outputs /tmp/processing && \
-    chown -R appuser:appgroup /app /tmp/processing
+    chown -R 10001:10001 /app /tmp/processing
 
-USER appuser
+USER 10001:10001
+
+EXPOSE 8081
 
 CMD ["./worker"]

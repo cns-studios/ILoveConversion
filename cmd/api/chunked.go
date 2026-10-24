@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	filecrypto "fileforge/internal/crypto"
 	"fileforge/internal/database"
@@ -17,7 +20,16 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-const uploadChunkSize int64 = 50 << 20
+// uploadChunkSize must stay well under Cloudflare's 100 MB request limit on the free plan, and
+// is fixed rather than configurable: replicas must agree on it for the life of an upload.
+const uploadChunkSize int64 = 16 << 20
+
+func filecryptoEncrypt(key []byte, src io.Reader, dst io.Writer) error {
+	return filecrypto.EncryptStream(key, src, dst)
+}
+
+// abortAssembly removes a private assembly file that will never be committed.
+func abortAssembly(path string) { os.Remove(path) }
 
 func chunkCount(size int64) int {
 	return int((size + uploadChunkSize - 1) / uploadChunkSize)
@@ -97,6 +109,7 @@ func (a *app) handleInitUpload(w http.ResponseWriter, r *http.Request) {
 		OriginalName: filename,
 		InputSize:    size,
 		Params:       params,
+		KeyID:        a.cfg.Keys.CurrentID(),
 	}, a.cfg.FileRetentionHours)
 	if err != nil {
 		log.Printf("[upload] create job error: %v", err)
@@ -145,7 +158,7 @@ func (a *app) handleUploadChunk(w http.ResponseWriter, r *http.Request) {
 	}
 	expected := chunkLen(job.InputSize, index)
 
-	key, err := filecrypto.DeriveKey(a.cfg.MasterKey, job.ID)
+	key, err := a.cfg.Keys.JobKey(job.KeyID, job.ID)
 	if err != nil {
 		log.Printf("[upload] key derivation error: %v", err)
 		writeError(w, http.StatusInternalServerError, "Internal error")
@@ -193,12 +206,17 @@ func (a *app) handleUploadChunk(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// assemblyTimeout bounds one assembly attempt; the lease is renewed while it runs.
+const assemblyTimeout = 30 * time.Minute
+
+// handleCompleteUpload only claims the assembly and answers 202. Assembling a large file reads
+// and rewrites all of it, which can outlast a proxy's response limit (Cloudflare: 100 s), so the
+// work runs in the background and the client polls the job like for any other state.
 func (a *app) handleCompleteUpload(w http.ResponseWriter, r *http.Request) {
 	job := a.uploadJob(w, r)
 	if job == nil {
 		return
 	}
-	ctx := r.Context()
 	total := chunkCount(job.InputSize)
 
 	for i := 0; i < total; i++ {
@@ -210,23 +228,116 @@ func (a *app) handleCompleteUpload(w http.ResponseWriter, r *http.Request) {
 		f.Close()
 	}
 
-	key, err := filecrypto.DeriveKey(a.cfg.MasterKey, job.ID)
+	// The database decides who assembles: a second replica (or a retry) gets 409 here instead
+	// of racing on the files.
+	claimed, err := a.db.ClaimAssembly(r.Context(), job.ID)
 	if err != nil {
-		log.Printf("[upload] key derivation error: %v", err)
+		log.Printf("[upload] claim assembly error: %v", err)
 		writeError(w, http.StatusInternalServerError, "Internal error")
 		return
 	}
-
-	fail := func(status int, msg string) {
-		a.db.DeleteJob(ctx, job.ID)
-		a.store.DeleteJobFiles(job.ID)
-		writeError(w, status, msg)
+	if !claimed {
+		writeError(w, http.StatusConflict, "Upload already completed")
+		return
 	}
 
-	dst, err := a.store.CreateInput(job.ID)
+	a.startAssembly(job)
+	writeJSON(w, http.StatusAccepted, job.ToResponse())
+}
+
+func (a *app) startAssembly(job *models.Job) {
+	a.assembling.Add(1)
+	go func() {
+		defer a.assembling.Done()
+		ctx, cancel := context.WithTimeout(a.backgroundCtx(), assemblyTimeout)
+		defer cancel()
+		a.assemble(ctx, job)
+	}()
+}
+
+// resumeAssemblies finishes uploads whose replica died mid-assembly. The parts are only deleted
+// after the input is committed, so the work can simply be redone.
+func (a *app) resumeAssemblies(ctx context.Context) {
+	ids, err := a.db.ClaimStaleAssemblies(ctx, 10)
+	if err != nil {
+		log.Printf("[upload] resume assemblies: %v", err)
+		return
+	}
+	for _, id := range ids {
+		job, err := a.db.GetJob(ctx, id)
+		if err != nil {
+			log.Printf("[upload] resume %s: %v", id, err)
+			continue
+		}
+		log.Printf("[upload] Resuming abandoned assembly of %s", id)
+		a.startAssembly(job)
+	}
+}
+
+func (a *app) resumeLoop(ctx context.Context) {
+	t := time.NewTicker(time.Minute)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			a.resumeAssemblies(ctx)
+		}
+	}
+}
+
+func (a *app) assemble(ctx context.Context, job *models.Job) {
+	total := chunkCount(job.InputSize)
+
+	fail := func(msg string) {
+		// Not tied to ctx: the client must learn about the failure even if we are shutting down.
+		bg, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		if err := a.db.FailAssembly(bg, job.ID, msg); err != nil {
+			log.Printf("[upload] %v", err)
+		}
+		a.store.DeleteJobFiles(job.ID)
+	}
+
+	// Renew the lease for as long as we work, so a slow disk never lets another replica take over.
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		t := time.NewTicker(database.AssemblyLeaseRenewEvery)
+		defer t.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-t.C:
+				if _, err := a.db.TouchAssembly(ctx, job.ID); err != nil {
+					log.Printf("[upload] %v", err)
+				}
+			}
+		}
+	}()
+
+	key, err := a.cfg.Keys.JobKey(job.KeyID, job.ID)
+	if err != nil {
+		log.Printf("[upload] key derivation error: %v", err)
+		fail("Internal error")
+		return
+	}
+
+	for i := 0; i < total; i++ {
+		f, err := a.store.OpenPart(job.ID, i)
+		if err != nil {
+			fail(fmt.Sprintf("Upload is incomplete (chunk %d is missing). Please try again.", i))
+			return
+		}
+		f.Close()
+	}
+
+	dst, err := a.store.CreateAssembly(job.ID)
 	if err != nil {
 		log.Printf("[upload] create storage file error: %v", err)
-		fail(http.StatusInternalServerError, "Storage error")
+		fail("Storage error")
 		return
 	}
 
@@ -244,32 +355,61 @@ func (a *app) handleCompleteUpload(w http.ResponseWriter, r *http.Request) {
 		pw.CloseWithError(err)
 	}()
 
-	plain := &countingReader{r: pr}
+	plain := &countingReader{r: &ctxReader{ctx: ctx, r: pr}}
 	encErr := filecrypto.EncryptStream(key, plain, dst)
 	pr.CloseWithError(io.ErrClosedPipe)
 	syncErr := dst.Sync()
 	dst.Close()
 
+	if ctx.Err() != nil {
+		// Shutdown or timeout: leave the parts and the stale lease so another replica resumes.
+		os.Remove(dst.Name())
+		log.Printf("[upload] assembly of %s interrupted: %v", job.ID, ctx.Err())
+		return
+	}
 	if encErr != nil || syncErr != nil {
+		os.Remove(dst.Name())
 		log.Printf("[upload] assemble error: enc=%v sync=%v", encErr, syncErr)
-		fail(http.StatusInternalServerError, "Failed to process upload")
+		fail("Failed to process upload")
 		return
 	}
 	if plain.n != job.InputSize {
+		os.Remove(dst.Name())
 		log.Printf("[upload] size mismatch for %s: got %d, want %d", job.ID, plain.n, job.InputSize)
-		fail(http.StatusBadRequest, "Uploaded data does not match the declared size")
+		fail("Uploaded data does not match the declared size")
+		return
+	}
+	if err := a.store.CommitInput(job.ID, dst); err != nil {
+		os.Remove(dst.Name())
+		log.Printf("[upload] commit input error: %v", err)
+		fail("Storage error")
+		return
+	}
+
+	queued, err := a.db.EnqueueJob(ctx, job.ID)
+	if err != nil {
+		log.Printf("[upload] enqueue error: %v", err)
+		return // lease goes stale, the resume loop retries; the input is already committed
+	}
+	if !queued {
+		// Deleted or failed meanwhile, or another replica got here first.
 		return
 	}
 	a.store.DeleteParts(job.ID)
 
-	if err := a.queue.Enqueue(ctx, job.ID); err != nil {
-		log.Printf("[upload] enqueue error: %v", err)
-		fail(http.StatusInternalServerError, "Failed to queue job")
-		return
-	}
-
 	log.Printf("[upload] Job %s created: %s (%s, %d chunks)",
 		job.ID, job.Operation, formatBytes(job.InputSize), total)
+}
 
-	writeJSON(w, http.StatusCreated, job.ToResponse())
+// ctxReader makes a blocking copy stop when ctx is cancelled.
+type ctxReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (c *ctxReader) Read(p []byte) (int, error) {
+	if err := c.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return c.r.Read(p)
 }

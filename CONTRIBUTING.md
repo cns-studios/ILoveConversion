@@ -45,11 +45,22 @@ The site is served at `http://localhost:5823`.
 | Path | Contents |
 |---|---|
 | `cmd/api`, `cmd/worker` | Entry points for the API gateway and the job worker |
-| `internal/` | Config, crypto, database, models, processors, queue and storage packages |
+| `internal/` | Config, crypto, database (migrations and the job queue), metrics, models, processors and storage packages |
 | `rembg-service/` | Python background-removal service |
-| `frontend/` | Static HTML, CSS and JS served by nginx |
-| `nginx/`, `docker/`, `docker-compose.yml` | Deployment configuration |
+| `frontend/` | Static HTML, CSS and JS, embedded into the API binary |
+| `docker/`, `docker-compose.yml`, `.github/workflows/` | Deployment configuration and CI |
 | `legal/`, `scripts/build_legal.py` | Source and build script for the legal pages |
+
+### Tests
+
+`go test ./...` runs the unit tests. The database and worker tests need a real Postgres and are skipped without one:
+
+```bash
+docker run -d --rm -p 55432:5432 -e POSTGRES_PASSWORD=postgres postgres:16-alpine
+TEST_DATABASE_URL='postgres://postgres:postgres@localhost:55432/postgres?sslmode=disable' go test ./...
+```
+
+Each test creates and drops its own database. CI runs the same tests against a Postgres service container.
 
 ## Code Guidelines
 

@@ -3,73 +3,77 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"path/filepath"
 	"strings"
 
-	filecrypto "fileforge/internal/crypto"
 	"fileforge/internal/database"
 	"fileforge/internal/models"
 )
 
+const maxFormFieldBytes = 64 << 10
+
+// handleCreateJob accepts a single multipart upload. The body is streamed straight into the
+// encrypting writer, never through Go's multipart buffering, which would spill plaintext to a
+// temp file. Form fields must therefore precede the file part.
 func (a *app) handleCreateJob(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	r.Body = http.MaxBytesReader(w, r.Body, a.cfg.MaxFileSize+10<<20)
 
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
-			writeError(w, http.StatusRequestEntityTooLarge,
-				fmt.Sprintf("File too large. Maximum: %s", formatBytes(a.cfg.MaxFileSize)))
-			return
-		}
+	mr, err := r.MultipartReader()
+	if err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid form data")
 		return
 	}
-	defer func() {
-		if r.MultipartForm != nil {
-			r.MultipartForm.RemoveAll()
+
+	fields := map[string]string{}
+	var filePart *multipart.Part
+	for filePart == nil {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
 		}
-	}()
-
-	operation := strings.TrimSpace(r.FormValue("operation"))
-	if !models.ValidOperations[operation] {
-		writeError(w, http.StatusBadRequest,
-			fmt.Sprintf("Invalid operation: %q", operation))
-		return
+		if err != nil {
+			a.writeUploadReadError(w, err)
+			return
+		}
+		if part.FormName() == "file" && part.FileName() != "" {
+			filePart = part
+			break
+		}
+		val, err := io.ReadAll(io.LimitReader(part, maxFormFieldBytes))
+		if err != nil {
+			a.writeUploadReadError(w, err)
+			return
+		}
+		fields[part.FormName()] = string(val)
 	}
-
-	file, header, err := r.FormFile("file")
-	if err != nil {
+	if filePart == nil {
 		writeError(w, http.StatusBadRequest, "No file provided. Use field name 'file'.")
 		return
 	}
-	defer file.Close()
+	defer filePart.Close()
 
-	if header.Size > a.cfg.MaxFileSize {
-		writeError(w, http.StatusRequestEntityTooLarge,
-			fmt.Sprintf("File too large (%s). Maximum: %s",
-				formatBytes(header.Size), formatBytes(a.cfg.MaxFileSize)))
+	operation := strings.TrimSpace(fields["operation"])
+	if !models.ValidOperations[operation] {
+		writeError(w, http.StatusBadRequest,
+			fmt.Sprintf("Invalid operation: %q (send form fields before the file)", operation))
 		return
 	}
 
-	if header.Size == 0 {
-		writeError(w, http.StatusBadRequest, "File is empty")
-		return
-	}
-
-	inputExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(header.Filename), "."))
-	inputExt = normalizeExt(inputExt)
-
+	filename := filepath.Base(filePart.FileName())
+	inputExt := normalizeExt(strings.ToLower(strings.TrimPrefix(filepath.Ext(filename), ".")))
 	if !models.ValidInputFormat(operation, inputExt) {
 		writeError(w, http.StatusBadRequest,
 			fmt.Sprintf("Unsupported input format .%s for %s", inputExt, operation))
 		return
 	}
 
-	params, err := parseAndValidateParams(r, operation, inputExt)
+	params, err := parseParams(func(k string) string { return fields[k] }, operation, inputExt)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -84,9 +88,9 @@ func (a *app) handleCreateJob(w http.ResponseWriter, r *http.Request) {
 	job, err := a.db.CreateJob(ctx, database.CreateJobParams{
 		SessionID:    session.ID,
 		Operation:    operation,
-		OriginalName: header.Filename,
-		InputSize:    header.Size,
+		OriginalName: filename,
 		Params:       params,
+		KeyID:        a.cfg.Keys.CurrentID(),
 	}, a.cfg.FileRetentionHours)
 	if err != nil {
 		log.Printf("[upload] create job error: %v", err)
@@ -94,44 +98,86 @@ func (a *app) handleCreateJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, err := filecrypto.DeriveKey(a.cfg.MasterKey, job.ID)
+	abort := func(status int, msg string) {
+		a.db.DeleteJob(ctx, job.ID)
+		a.store.DeleteJobFiles(job.ID)
+		writeError(w, status, msg)
+	}
+
+	key, err := a.cfg.Keys.JobKey(job.KeyID, job.ID)
 	if err != nil {
 		log.Printf("[upload] key derivation error: %v", err)
-		a.db.DeleteJob(ctx, job.ID)
-		writeError(w, http.StatusInternalServerError, "Internal error")
+		abort(http.StatusInternalServerError, "Internal error")
 		return
 	}
 
-	dstFile, err := a.store.CreateInput(job.ID)
+	dst, err := a.store.CreateAssembly(job.ID)
 	if err != nil {
 		log.Printf("[upload] create storage file error: %v", err)
-		a.db.DeleteJob(ctx, job.ID)
-		writeError(w, http.StatusInternalServerError, "Storage error")
+		abort(http.StatusInternalServerError, "Storage error")
 		return
 	}
 
-	encErr := filecrypto.EncryptStream(key, file, dstFile)
-	syncErr := dstFile.Sync()
-	dstFile.Close()
+	body := &countingReader{r: io.LimitReader(filePart, a.cfg.MaxFileSize+1)}
+	encErr := filecryptoEncrypt(key, body, dst)
+	syncErr := dst.Sync()
+	dst.Close()
 
 	if encErr != nil || syncErr != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(encErr, &maxErr) {
+			abortAssembly(dst.Name())
+			abort(http.StatusRequestEntityTooLarge,
+				fmt.Sprintf("File too large. Maximum: %s", formatBytes(a.cfg.MaxFileSize)))
+			return
+		}
+		abortAssembly(dst.Name())
 		log.Printf("[upload] encrypt error: enc=%v sync=%v", encErr, syncErr)
-		a.db.DeleteJob(ctx, job.ID)
-		a.store.DeleteJobFiles(job.ID)
-		writeError(w, http.StatusInternalServerError, "Failed to process upload")
+		abort(http.StatusInternalServerError, "Failed to process upload")
+		return
+	}
+	if body.n == 0 {
+		abortAssembly(dst.Name())
+		abort(http.StatusBadRequest, "File is empty")
+		return
+	}
+	if body.n > a.cfg.MaxFileSize {
+		abortAssembly(dst.Name())
+		abort(http.StatusRequestEntityTooLarge,
+			fmt.Sprintf("File too large. Maximum: %s", formatBytes(a.cfg.MaxFileSize)))
 		return
 	}
 
-	if err := a.queue.Enqueue(ctx, job.ID); err != nil {
-		log.Printf("[upload] enqueue error: %v", err)
-		a.db.DeleteJob(ctx, job.ID)
-		a.store.DeleteJobFiles(job.ID)
-		writeError(w, http.StatusInternalServerError, "Failed to queue job")
+	if err := a.store.CommitInput(job.ID, dst); err != nil {
+		abortAssembly(dst.Name())
+		log.Printf("[upload] commit input error: %v", err)
+		abort(http.StatusInternalServerError, "Storage error")
+		return
+	}
+	if err := a.db.SetInputSize(ctx, job.ID, body.n); err != nil {
+		log.Printf("[upload] %v", err)
+		abort(http.StatusInternalServerError, "Failed to create job")
+		return
+	}
+	job.InputSize = body.n
+
+	if queued, err := a.db.EnqueueJob(ctx, job.ID); err != nil || !queued {
+		log.Printf("[upload] enqueue error: %v (queued=%v)", err, queued)
+		abort(http.StatusInternalServerError, "Failed to queue job")
 		return
 	}
 
-	log.Printf("[upload] Job %s created: %s .%s (%s)",
-		job.ID, operation, inputExt, formatBytes(header.Size))
+	log.Printf("[upload] Job %s created: %s .%s (%s)", job.ID, operation, inputExt, formatBytes(body.n))
 
 	writeJSON(w, http.StatusCreated, job.ToResponse())
+}
+
+func (a *app) writeUploadReadError(w http.ResponseWriter, err error) {
+	var maxErr *http.MaxBytesError
+	if errors.As(err, &maxErr) {
+		writeError(w, http.StatusRequestEntityTooLarge,
+			fmt.Sprintf("File too large. Maximum: %s", formatBytes(a.cfg.MaxFileSize)))
+		return
+	}
+	writeError(w, http.StatusBadRequest, "Invalid form data")
 }
