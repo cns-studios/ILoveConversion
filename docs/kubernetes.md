@@ -62,3 +62,13 @@ New jobs use `ENCRYPTION_MASTER_KEY` under the id `ENCRYPTION_KEY_ID` (default `
 
 - The assembler renews its 5 minute lease every 75 seconds. If a replica dies, any replica resumes the assembly once the 5 minute lease expires (checked every minute). The chunk files are only deleted after the input is committed and the job queued.
 - On SIGTERM the API waits for running assemblies within its shutdown grace period (30 s). Give the api pod a `terminationGracePeriodSeconds` of at least that; anything unfinished is resumed by another replica.
+
+## Chaos test
+
+`scripts/chaos.sh` uploads video-compress jobs through the public API while deleting api, worker and postgres pods at random, then checks that every job completes and its download matches the recorded size. Run it against a test deployment only:
+
+```
+BASE_URL=https://ilc.example.com NAMESPACE=ilc scripts/chaos.sh
+```
+
+What it relies on: the browser and the script both wait out outages (uploads and status checks retry for about 10 minutes), workers keep their lease alive while the database is down and retry the final write for up to 10 minutes, and a worker's liveness does not depend on the database being reachable.

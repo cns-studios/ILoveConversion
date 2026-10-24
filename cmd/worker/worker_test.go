@@ -250,3 +250,28 @@ func TestLiveStaysGreenDuringJobLongerThanWindow(t *testing.T) {
 		t.Fatalf("test ran %v, not longer than the window %v", runFor, window)
 	}
 }
+
+func TestDBRetryRidesOutOutage(t *testing.T) {
+	calls := 0
+	err := dbRetry(context.Background(), func(ctx context.Context) error {
+		calls++
+		if calls < 3 {
+			return errors.New("connection refused")
+		}
+		return nil
+	})
+	if err != nil || calls != 3 {
+		t.Fatalf("want success after 3 calls, got err=%v calls=%d", err, calls)
+	}
+}
+
+func TestDBRetryStopsOnLostLock(t *testing.T) {
+	calls := 0
+	err := dbRetry(context.Background(), func(ctx context.Context) error {
+		calls++
+		return database.ErrLockLost
+	})
+	if !errors.Is(err, database.ErrLockLost) || calls != 1 {
+		t.Fatalf("a lost lock must return at once, got err=%v calls=%d", err, calls)
+	}
+}

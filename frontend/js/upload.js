@@ -1,4 +1,7 @@
-const CHUNK_RETRIES = 3;
+// The server can vanish for a while (a pod or the database restarted by the cluster), so every
+// request is retried with backoff, capped at 10 s, for up to RETRY_WINDOW before giving up.
+const RETRY_WINDOW = 10 * 60 * 1000;
+const RETRY_STATUSES = [408, 429, 499];
 
 function send(item, method, url, body, onProgress) {
     return new Promise((resolve, reject) => {
@@ -40,41 +43,59 @@ function send(item, method, url, body, onProgress) {
     });
 }
 
-async function sendChunk(item, url, blob, onProgress) {
+// sendRetrying repeats a request that failed for a reason that is not the request's fault.
+// A 409 on a repeat of an idempotent step means the earlier attempt did land (acceptConflict).
+async function sendRetrying(item, method, url, body, onProgress, { acceptConflict = false, onConflict } = {}) {
+    const deadline = Date.now() + RETRY_WINDOW;
     for (let attempt = 1; ; attempt++) {
         try {
-            return await send(item, 'PUT', url, blob, onProgress);
+            return await send(item, method, url, body, onProgress);
         } catch (err) {
-            const transient = err.retry || err.status >= 500;
-            if (!transient || err.aborted || item.removed || attempt >= CHUNK_RETRIES) throw err;
-            onProgress(0);
-            await new Promise((r) => setTimeout(r, 500 * attempt));
+            if (acceptConflict && attempt > 1 && err.status === 409) return onConflict();
+            const transient = err.retry || err.status >= 500 || RETRY_STATUSES.includes(err.status);
+            if (!transient || err.aborted || item.removed || Date.now() >= deadline) throw err;
+            if (onProgress) onProgress(0);
+            await new Promise((r) => setTimeout(r, Math.min(500 * 2 ** (attempt - 1), 10000)));
         }
+    }
+}
+
+// deleteJob is best-effort cleanup that outlasts a short outage; whatever it misses expires
+// on the server anyway.
+export async function deleteJob(id) {
+    const deadline = Date.now() + 2 * 60 * 1000;
+    for (let attempt = 1; Date.now() < deadline; attempt++) {
+        try {
+            const res = await fetch(`/api/jobs/${id}`, { method: 'DELETE' });
+            if (res.status < 500 && !RETRY_STATUSES.includes(res.status)) return;
+        } catch (e) {
+        }
+        await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** (attempt - 1), 15000)));
     }
 }
 
 export async function uploadFile(item, onProgress) {
     const { file } = item;
-    const init = await send(item, 'POST', '/api/uploads', new URLSearchParams({
+    const init = await sendRetrying(item, 'POST', '/api/uploads', new URLSearchParams({
         ...item.params,
         operation: item.operation,
         filename: file.name,
         size: file.size,
-    }));
+    }), null);
     item.jobId = init.id;
 
     try {
         let sent = 0;
         for (let i = 0; i < init.chunks; i++) {
             const blob = file.slice(i * init.chunk_size, (i + 1) * init.chunk_size);
-            await sendChunk(item, `/api/uploads/${init.id}/chunks/${i}`, blob,
+            await sendRetrying(item, 'PUT', `/api/uploads/${init.id}/chunks/${i}`, blob,
                 (loaded) => onProgress(Math.round(((sent + loaded) / file.size) * 100)));
             sent += blob.size;
         }
         onProgress(100);
-        return await send(item, 'POST', `/api/uploads/${init.id}/complete`);
+        return await sendRetrying(item, 'POST', `/api/uploads/${init.id}/complete`, undefined, null, { acceptConflict: true, onConflict: () => ({ id: init.id }) });
     } catch (err) {
-        if (!item.removed) fetch(`/api/jobs/${init.id}`, { method: 'DELETE' }).catch(() => {});
+        if (!item.removed) deleteJob(init.id);
         item.jobId = null;
         throw err;
     }

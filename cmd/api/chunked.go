@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -133,6 +134,12 @@ func (a *app) uploadJob(w http.ResponseWriter, r *http.Request) *models.Job {
 
 	session := sessionFromCtx(r)
 	job, err := a.db.GetJob(r.Context(), jobID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		// Not "missing": the database is unreachable, and the client should retry.
+		log.Printf("[upload] db error for %s: %v", jobID, err)
+		writeError(w, http.StatusServiceUnavailable, "Database unavailable, please retry")
+		return nil
+	}
 	if err != nil || session == nil || job.SessionID != session.ID {
 		writeError(w, http.StatusNotFound, "Upload not found")
 		return nil
