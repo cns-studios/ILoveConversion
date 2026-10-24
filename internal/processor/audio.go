@@ -111,10 +111,10 @@ func lossyAudioArgs(format string, quality int) []string {
 		return []string{"-c:a", "flac", "-compression_level", fmt.Sprintf("%d", level)}
 
 	case "wav":
-		return []string{"-c:a", "pcm_s16le"}
+		return pcmArgs(quality, "pcm_u8", "pcm_s16le")
 
 	case "aiff":
-		return []string{"-c:a", "pcm_s16be"}
+		return pcmArgs(quality, "pcm_s8", "pcm_s16be")
 
 	case "wma":
 		br := mapRange(quality, 1, 100, 32, 192)
@@ -122,6 +122,20 @@ func lossyAudioArgs(format string, quality int) []string {
 
 	default:
 		return []string{"-c:a", "copy"}
+	}
+}
+
+// pcmArgs is the only lever PCM has: bit depth and sample rate. Low quality drops to 8-bit at
+// 22.05 kHz, medium to 16-bit at 32 kHz, high keeps 16-bit and the source rate. A source
+// already below the target rate gets resampled up, so very low-rate input can grow.
+func pcmArgs(quality int, codec8, codec16 string) []string {
+	switch {
+	case quality <= 30:
+		return []string{"-af", "aresample=22050", "-c:a", codec8}
+	case quality <= 60:
+		return []string{"-af", "aresample=32000", "-c:a", codec16}
+	default:
+		return []string{"-c:a", codec16}
 	}
 }
 
