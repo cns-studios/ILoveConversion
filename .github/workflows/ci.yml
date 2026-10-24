@@ -38,8 +38,19 @@ jobs:
       - run: go vet ./...
       - run: go test ./... -race -count=1
 
-  images:
+  # Computes ONE tag per workflow run so api, worker and rembg all get the
+  # identical tag. Format: main-<sha7>-<unix timestamp>, sortable by Flux.
+  tag:
     needs: test
+    runs-on: ubuntu-24.04
+    outputs:
+      value: ${{ steps.t.outputs.value }}
+    steps:
+      - id: t
+        run: echo "value=main-${GITHUB_SHA::7}-$(date +%s)" >> "$GITHUB_OUTPUT"
+
+  images:
+    needs: [test, tag]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -64,17 +75,15 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Compute tag
-        id: tag
-        run: echo "tag=main-${GITHUB_SHA::7}-$(date -d '${{ github.run_started_at }}' +%s)" >> "$GITHUB_OUTPUT"
       - id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}/${{ matrix.name }}
           # Immutable tag per commit: deployments pin this, never a moving tag.
+          # The sortable tag is only pushed from main, so only main deploys.
           tags: |
             type=raw,value=${{ github.sha }}
-            type=raw,value=${{ steps.tag.outputs.tag }},enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ needs.tag.outputs.value }},enable=${{ github.ref == 'refs/heads/main' }}
       - uses: docker/build-push-action@v6
         with:
           context: .
