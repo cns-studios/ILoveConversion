@@ -4,7 +4,7 @@ ILoveConversion handles user-supplied files, so we take security reports serious
 
 ## Supported Versions
 
-There are no tagged releases. Security fixes are applied to the latest `main` branch and to the hosted instance at <https://ilc.cns-studios.com>. Self-hosted deployments should update to the latest `main`.
+There are no tagged releases. Security fixes are applied to the latest `main` branch and to the hosted instance at <https://ilc.cns.ad>. Self-hosted deployments should update to the latest `main`.
 
 ## Reporting a Vulnerability
 
@@ -39,7 +39,7 @@ In scope:
 - The encryption and key-derivation code (`internal/crypto`)
 - The rembg service (`rembg-service/`)
 - The frontend and Docker setup in this repository
-- The hosted instance at <https://ilc.cns-studios.com>, for issues in this project's own code and configuration
+- The hosted instance at <https://ilc.cns.ad>, for issues in this project's own code and configuration
 
 Examples of issues we are interested in: access to other users' files or jobs, weaknesses in the encryption at rest, path traversal, upload handling flaws, command injection into `ffmpeg`, `ghostscript`, `qpdf` or `libvips`, SSRF, rate-limit bypass, and unencrypted data leaking outside the tmpfs sandbox.
 

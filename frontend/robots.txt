@@ -15,4 +15,4 @@ User-agent: CCBot
 Allow: /
 Disallow: /api/
 
-Sitemap: https://ilc.cns-studios.com/sitemap.xml
+Sitemap: https://ilc.cns.ad/sitemap.xml
