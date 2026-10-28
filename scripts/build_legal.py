@@ -10,7 +10,7 @@ import re
 import sys
 from pathlib import Path
 
-SITE = 'https://ilc.cns-studios.com'
+SITE = 'https://ilc.cns.ad'
 
 PAGES = [
     {
